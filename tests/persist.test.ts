@@ -70,6 +70,26 @@ describe('persistence', () => {
     expect(data.session).toBeNull();
   });
 
+  it('migrates the 1.0 auto-advance setting to the fast correction mode', () => {
+    expect(parseSettings({ autoAdvance: true })!.correction).toBe('fast');
+    expect(parseSettings({ autoAdvance: false })!.correction).toBe('detailed');
+    expect(parseSettings({ defaultCount: 0 })!.defaultCount).toBe(0);
+  });
+
+  it('round-trips user ranges and keeps them in backups', async () => {
+    const store = new MemoryStore();
+    const ranges = { version: 1 as const, edits: { 'hu-bb-8': { hands: realLibrary.require('hu-bb-8').hands, updatedAt: 3 } }, custom: [], marginal: { 'hu-bb-8': ['AA'] } };
+    await saveKey(store, 'ranges', ranges);
+    const { data } = await loadAll(store);
+    expect(data.ranges).toEqual(ranges);
+    const restored = parseBackup(JSON.stringify(makeBackup({ ...DEFAULTS(), ranges }, T0)));
+    expect(restored.ranges).toEqual(ranges);
+    // Backups made before ranges existed still import.
+    const old = { ...makeBackup(DEFAULTS(), T0) } as Record<string, unknown>;
+    delete old.ranges;
+    expect(parseBackup(JSON.stringify(old)).ranges.custom).toEqual([]);
+  });
+
   it('sanitises settings with unknown or invalid values', () => {
     expect(parseSettings({ grading: 'weird', defaultCount: -3, haptics: false })).toEqual({ ...DEFAULT_SETTINGS, haptics: false });
     expect(parseSettings('x')).toBeNull();

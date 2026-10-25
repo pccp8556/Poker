@@ -12,8 +12,10 @@ export interface ActionDef {
   label: string;
   /** Label exactly as printed in the source document. */
   sourceLabel: string;
-  /** Colour of the legend swatch in the source (traceability only). */
+  /** Colour of the legend swatch in the source (used by the "PDF colours" option). */
   sourceColor: string;
+  /** Colour chosen by the user for a custom action (dark theme). */
+  color?: string;
 }
 
 /** Action id -> frequency in (0, 1]. Frequencies of a hand sum to 1. */
@@ -31,7 +33,13 @@ export interface RangeDef {
   title: string;
   subtitle: string;
   scenarioLabel: string | null;
-  source: { page: number };
+  /** Page of the source PDF, or null for a range created in the app. */
+  source: { page: number | null };
+  /** "pdf": extracted from the document; "custom": created by the user. */
+  origin?: 'pdf' | 'custom';
+  /** True when the user edited a PDF range (the original stays available). */
+  modified?: boolean;
+  updatedAt?: number;
   /** Actions of the legend, in source order. */
   actions: ActionDef[];
   hands: Record<string, Strategy>;

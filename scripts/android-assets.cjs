@@ -8,9 +8,9 @@ const ROOT = path.resolve(__dirname, '..');
 const RES = path.join(ROOT, 'android/app/src/main/res');
 const svg = fs.readFileSync(path.join(ROOT, 'public/icon.svg'), 'utf8');
 const inner = svg.replace(/^[\s\S]*?<svg[^>]*>/, '').replace(/<\/svg>\s*$/, '');
-// Foreground only (cards), without the rounded background, for adaptive icons.
-const cards = inner.replace(/<rect width="512" height="512"[^>]*\/>/, '').replace(/<circle[^>]*\/>/, '');
-const BG = '#0f2a20';
+// Foreground only (the <g id="bg"> group removed), for adaptive and round icons.
+const cards = inner.replace(/<g id="bg">[\s\S]*?<\/g>/, '');
+const BG = '#123b2c';
 const DENS = { mdpi: 1, hdpi: 1.5, xhdpi: 2, xxhdpi: 3, xxxhdpi: 4 };
 
 const page = (body, w, h, bg = 'transparent') =>

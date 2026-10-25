@@ -18,6 +18,56 @@ function isObject(v: unknown): v is Record<string, unknown> {
 }
 
 /**
+ * Problems of a single range (empty when valid). Used for the PDF data and for
+ * the ranges created or edited by the user.
+ */
+export function validateRange(r: unknown, where = 'range'): string[] {
+  const problems: string[] = [];
+  if (!isObject(r)) return [`${where} : objet attendu`];
+  if (typeof r.id !== 'string' || !r.id) problems.push(`${where} : id manquant`);
+  if (!FORMATS.includes(r.format as Format)) problems.push(`${where} : format inconnu`);
+  if (!POSITIONS.includes(r.hero as Position)) problems.push(`${where} : position inconnue`);
+  if (r.villain !== null && !POSITIONS.includes(r.villain as Position)) problems.push(`${where} : adversaire inconnu`);
+  if (!SCENARIOS.includes(r.scenario as Scenario)) problems.push(`${where} : scénario inconnu`);
+  if (typeof r.stackBb !== 'number' || !(r.stackBb > 0)) problems.push(`${where} : profondeur invalide`);
+  if (typeof r.title !== 'string' || !r.title) problems.push(`${where} : titre manquant`);
+  if (!isObject(r.source) || !(typeof r.source.page === 'number' || r.source.page === null)) problems.push(`${where} : source manquante`);
+  if (!Array.isArray(r.actions) || r.actions.length === 0) {
+    problems.push(`${where} : aucune action`);
+    return problems;
+  }
+  const actionIds = new Set<string>();
+  for (const a of r.actions) {
+    if (!isObject(a) || typeof a.id !== 'string' || !a.id || typeof a.label !== 'string' || !a.label.trim()) {
+      problems.push(`${where} : action mal formée`);
+      continue;
+    }
+    if (actionIds.has(a.id)) problems.push(`${where} : action ${a.id} dupliquée`);
+    actionIds.add(a.id);
+  }
+  if (!isObject(r.hands)) {
+    problems.push(`${where} : mains manquantes`);
+    return problems;
+  }
+  for (const h of Object.keys(r.hands)) if (!isHand(h)) problems.push(`${where} : main inconnue ${h}`);
+  for (const h of ALL_HANDS) {
+    const strat = r.hands[h];
+    if (!isObject(strat)) {
+      problems.push(`${where} : main ${h} absente`);
+      continue;
+    }
+    let sum = 0;
+    for (const [aid, f] of Object.entries(strat)) {
+      if (!actionIds.has(aid)) problems.push(`${where} ${h} : action ${aid} absente de la légende`);
+      if (typeof f !== 'number' || !(f > 0) || f > 1 + EPSILON) problems.push(`${where} ${h} : fréquence invalide ${String(f)}`);
+      else sum += f;
+    }
+    if (Math.abs(sum - 1) > 1e-3) problems.push(`${where} ${h} : fréquences totales ${sum.toFixed(3)} ≠ 1`);
+  }
+  return problems;
+}
+
+/**
  * Validates raw JSON before the app trusts it. Every problem is collected so
  * that a broken data file is reported precisely instead of silently ignored.
  */
@@ -33,52 +83,11 @@ export function validateLibrary(raw: unknown): RangeLibrary {
   const ids = new Set<string>();
   for (const [i, r] of raw.ranges.entries()) {
     const where = isObject(r) && typeof r.id === 'string' ? r.id : `ranges[${i}]`;
-    if (!isObject(r)) {
-      problems.push(`${where} : objet attendu`);
-      continue;
+    if (isObject(r) && typeof r.id === 'string') {
+      if (ids.has(r.id)) problems.push(`${where} : id dupliqué`);
+      ids.add(r.id);
     }
-    if (typeof r.id !== 'string' || !r.id) problems.push(`${where} : id manquant`);
-    else if (ids.has(r.id)) problems.push(`${where} : id dupliqué`);
-    else ids.add(r.id);
-    if (!FORMATS.includes(r.format as Format)) problems.push(`${where} : format inconnu`);
-    if (!POSITIONS.includes(r.hero as Position)) problems.push(`${where} : position inconnue`);
-    if (r.villain !== null && !POSITIONS.includes(r.villain as Position)) problems.push(`${where} : adversaire inconnu`);
-    if (!SCENARIOS.includes(r.scenario as Scenario)) problems.push(`${where} : scénario inconnu`);
-    if (typeof r.stackBb !== 'number' || r.stackBb <= 0) problems.push(`${where} : profondeur invalide`);
-    if (!isObject(r.source) || typeof r.source.page !== 'number') problems.push(`${where} : page source manquante`);
-    if (!Array.isArray(r.actions) || r.actions.length === 0) {
-      problems.push(`${where} : aucune action`);
-      continue;
-    }
-    const actionIds = new Set<string>();
-    for (const a of r.actions) {
-      if (!isObject(a) || typeof a.id !== 'string' || typeof a.label !== 'string') {
-        problems.push(`${where} : action mal formée`);
-        continue;
-      }
-      if (actionIds.has(a.id)) problems.push(`${where} : action ${a.id} dupliquée`);
-      actionIds.add(a.id);
-    }
-    if (!isObject(r.hands)) {
-      problems.push(`${where} : mains manquantes`);
-      continue;
-    }
-    const handKeys = Object.keys(r.hands);
-    for (const h of handKeys) if (!isHand(h)) problems.push(`${where} : main inconnue ${h}`);
-    for (const h of ALL_HANDS) {
-      const strat = r.hands[h];
-      if (!isObject(strat)) {
-        problems.push(`${where} : main ${h} absente`);
-        continue;
-      }
-      let sum = 0;
-      for (const [aid, f] of Object.entries(strat)) {
-        if (!actionIds.has(aid)) problems.push(`${where} ${h} : action ${aid} absente de la légende`);
-        if (typeof f !== 'number' || !(f > 0) || f > 1 + EPSILON) problems.push(`${where} ${h} : fréquence invalide ${String(f)}`);
-        else sum += f;
-      }
-      if (Math.abs(sum - 1) > 1e-3) problems.push(`${where} ${h} : fréquences totales ${sum.toFixed(3)} ≠ 1`);
-    }
+    problems.push(...validateRange(r, where));
   }
   if (problems.length) throw new RangeDataError(problems);
   return raw as unknown as RangeLibrary;

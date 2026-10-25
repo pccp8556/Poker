@@ -3,7 +3,9 @@ import raw from '../data/ranges.json';
 import type { Grade } from '../domain/grading';
 import { Library, validateLibrary } from '../domain/library';
 import { addSession, emptyProgress, recordAnswer, type SessionMode } from '../domain/progress';
-import { answerCurrent, createSession, isFinished, summarize, type SessionConfig } from '../domain/quiz';
+import { answerCurrent, createSession, finishSession, isFinished, summarize, type SessionConfig } from '../domain/quiz';
+import type { RangeDef, RangeLibrary, Strategy } from '../domain/types';
+import { buildLibrary, marginalHands, pdfColorsById, sameHands } from '../domain/userRanges';
 import { defaultRng, randomId } from '../domain/rng';
 import { platformStore, MemoryStore, type KeyValueStore } from '../storage/kv';
 import {
@@ -30,12 +32,16 @@ export interface StoreState {
   status: 'loading' | 'ready' | 'error';
   error: string | null;
   library: Library | null;
+  /** Ranges exactly as extracted from the PDF (never modified). */
+  base: RangeLibrary | null;
   data: AppData;
   save: SaveStatus;
   saveError: string | null;
   /** Keys that were unreadable at startup (backed up, then reset). */
   recovered: DataKey[];
   toast: Toast | null;
+  /** Whether the browser granted persistent storage (always true on Android). */
+  storagePersisted: boolean | null;
 }
 
 type Listener = () => void;
@@ -47,11 +53,13 @@ export class AppStore {
     status: 'loading',
     error: null,
     library: null,
+    base: null,
     data: DEFAULTS(),
     save: 'idle',
     saveError: null,
     recovered: [],
     toast: null,
+    storagePersisted: null,
   };
   private listeners = new Set<Listener>();
   private queue: Promise<void> = Promise.resolve();
@@ -86,10 +94,15 @@ export class AppStore {
     return this.state.data;
   }
 
+  get base(): RangeLibrary {
+    if (!this.state.base) throw new Error('Bibliothèque non chargée');
+    return this.state.base;
+  }
+
   async init() {
-    let library: Library;
+    let base: RangeLibrary;
     try {
-      library = new Library(validateLibrary(raw));
+      base = validateLibrary(raw);
     } catch (e) {
       this.set({ status: 'error', error: e instanceof Error ? e.message : String(e) });
       return;
@@ -98,21 +111,33 @@ export class AppStore {
       const { data, recovered } = await loadAll(this.kv);
       // A finished session left over from a previous run is simply closed.
       if (data.session && isFinished(data.session)) data.session = null;
-      this.set({ status: 'ready', library, data, recovered });
+      const { library, problems } = buildLibrary(base, data.ranges);
+      // A session on a range that no longer exists cannot be resumed.
+      if (data.session && data.session.config.rangeIds.some((id) => !library.get(id))) data.session = null;
+      this.set({ status: 'ready', base, library, data, recovered });
       if (recovered.length) {
         this.showToast('Des données locales illisibles ont été mises de côté (copie de sauvegarde conservée).', 'error');
+      } else if (problems.length) {
+        this.showToast(problems[0]!, 'error');
       }
     } catch (e) {
       // Storage unavailable (private browsing, blocked cookies…): keep working in memory.
       this.kv = new MemoryStore();
       this.set({
         status: 'ready',
-        library,
+        base,
+        library: buildLibrary(base, DEFAULTS().ranges).library,
         data: DEFAULTS(),
         save: 'error',
         saveError: 'Stockage local indisponible : la progression ne sera pas conservée après fermeture.',
       });
     }
+  }
+
+  private rebuild(ranges = this.data.ranges) {
+    const { library, problems } = buildLibrary(this.base, ranges);
+    this.set({ library });
+    if (problems.length) this.showToast(problems[0]!, 'error');
   }
 
   // --- persistence ------------------------------------------------------
@@ -132,6 +157,10 @@ export class AppStore {
         this.set({ save: 'error', saveError: e instanceof Error ? e.message : String(e) });
       }
     });
+  }
+
+  setStoragePersisted(value: boolean) {
+    this.set({ storagePersisted: value });
   }
 
   /** Resolves once every pending write has been attempted. */
@@ -174,9 +203,9 @@ export class AppStore {
 
   // --- sessions -----------------------------------------------------------
 
-  buildConfig(rangeIds: string[], mode: SessionMode, questionCount?: number): SessionConfig {
+  buildConfig(rangeIds: string[], mode: SessionMode, questionCount?: number, extra: Partial<SessionConfig> = {}): SessionConfig {
     const s = this.data.settings;
-    return {
+    const config: SessionConfig = {
       rangeIds,
       mode,
       questionCount: questionCount ?? s.defaultCount,
@@ -184,7 +213,18 @@ export class AppStore {
       focusBoundary: s.focusBoundary,
       recallMistakes: s.recallMistakes,
       timerSec: mode === 'exam' ? s.examTimerSec : null,
+      ...(s.includeProfileDependent ? {} : { excludeActions: ['profile-dependent'] }),
+      ...extra,
     };
+    if (mode === 'marginal') {
+      const sets: Record<string, string[]> = {};
+      for (const id of rangeIds) {
+        const r = this.library.get(id);
+        if (r) sets[id] = [...marginalHands(r, this.data.ranges)];
+      }
+      config.handSets = sets;
+    }
+    return config;
   }
 
   /** Returns false when no question matches (e.g. no mistakes to review). */
@@ -219,6 +259,20 @@ export class AppStore {
     return res.grade;
   }
 
+  /** Ends an unlimited session (or stops early) and records it as completed. */
+  finishSession(): string | null {
+    const s = this.data.session;
+    if (!s) return null;
+    if (s.answers.length === 0) {
+      this.setData({ session: null }, ['session']);
+      return null;
+    }
+    const done = finishSession(s, Date.now());
+    const progress = addSession(this.data.progress, summarize(done, Date.now()));
+    this.setData({ session: null, progress }, ['session', 'progress']);
+    return s.id;
+  }
+
   /** Closes a finished session (its summary is already recorded). */
   closeSession(): string | null {
     const s = this.data.session;
@@ -245,7 +299,63 @@ export class AppStore {
 
   importBackup(text: string) {
     const b = parseBackup(text);
-    this.setData({ ...b, session: null }, ['settings', 'progress', 'favorites', 'recents', 'session']);
+    this.setData({ ...b, session: null }, ['settings', 'progress', 'favorites', 'recents', 'session', 'ranges']);
+    this.rebuild(b.ranges);
+  }
+
+  // --- ranges: edits, custom ranges, marginal hands ---------------------------
+
+  pdfColors(): Record<string, string> {
+    return pdfColorsById(this.base);
+  }
+
+  private setRanges(ranges: AppData['ranges']) {
+    // A running session keeps its questions; answers are graded against the saved version.
+    this.setData({ ranges }, ['ranges']);
+    this.rebuild(ranges);
+  }
+
+  /** Saves the hands of a range (an edit for a PDF range, the range itself for a custom one). */
+  saveRangeHands(id: string, hands: Record<string, Strategy>) {
+    const ranges = this.data.ranges;
+    const original = this.base.ranges.find((r) => r.id === id);
+    if (original) {
+      const edits = { ...ranges.edits };
+      if (sameHands(original.hands, hands)) delete edits[id];
+      else edits[id] = { hands, updatedAt: Date.now() };
+      this.setRanges({ ...ranges, edits });
+      return;
+    }
+    const custom = ranges.custom.map((r) => (r.id === id ? { ...r, hands, updatedAt: Date.now() } : r));
+    this.setRanges({ ...ranges, custom });
+  }
+
+  /** Restores the PDF version of a range. */
+  restoreRange(id: string) {
+    const edits = { ...this.data.ranges.edits };
+    delete edits[id];
+    this.setRanges({ ...this.data.ranges, edits });
+  }
+
+  saveCustomRange(range: RangeDef) {
+    const custom = this.data.ranges.custom.filter((r) => r.id !== range.id);
+    const { origin: _o, modified: _m, ...clean } = range;
+    this.setRanges({ ...this.data.ranges, custom: [...custom, { ...clean, updatedAt: Date.now() }] });
+  }
+
+  deleteCustomRange(id: string) {
+    if (this.data.session?.config.rangeIds.includes(id)) this.abandonSession();
+    const marginal = { ...this.data.ranges.marginal };
+    delete marginal[id];
+    this.setRanges({ ...this.data.ranges, custom: this.data.ranges.custom.filter((r) => r.id !== id), marginal });
+  }
+
+  /** Sets the marginal hands of a range; null restores the computed frontier. */
+  setMarginal(id: string, hands: string[] | null) {
+    const marginal = { ...this.data.ranges.marginal };
+    if (hands === null) delete marginal[id];
+    else marginal[id] = hands;
+    this.setRanges({ ...this.data.ranges, marginal });
   }
 
   resetProgress() {

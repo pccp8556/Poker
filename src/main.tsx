@@ -5,6 +5,7 @@ import './styles/base.css';
 import './styles/components.css';
 import './styles/session.css';
 import './styles/screens.css';
+import './styles/v2.css';
 
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';

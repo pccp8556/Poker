@@ -19,6 +19,7 @@ export function spotGroups(ranges: readonly RangeDef[]): SpotGroup[] {
     g.ranges.push(r);
     groups.set(key, g);
   }
+  for (const g of groups.values()) g.ranges.sort((a, b) => b.stackBb - a.stackBb);
   return [...groups.values()];
 }
 

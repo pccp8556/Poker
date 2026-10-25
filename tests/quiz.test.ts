@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sortActionIds } from '../src/domain/actions';
 import { itemKey } from '../src/domain/progress';
-import { answerCurrent, buildPool, createSession, currentQuestion, isFinished, maxRecalls, pickItems, RECALL_GAP, spreadRepeats, summarize, type SessionConfig } from '../src/domain/quiz';
+import { answerCurrent, buildPool, createSession, currentQuestion, finishSession, isFinished, maxRecalls, pickItems, RECALL_GAP, spreadRepeats, summarize, UNLIMITED, type SessionConfig } from '../src/domain/quiz';
 import { updateItem, type ItemStat } from '../src/domain/review';
 import { seededRng } from '../src/domain/rng';
 import { realLibrary, syntheticLibrary } from './fixtures';
@@ -194,5 +194,47 @@ describe('answering', () => {
     expect(sum).toMatchObject({ total: 4, correct: 2, completed: true, durationMs: 4000 });
     expect(sum.errors).toHaveLength(2);
     expect(sum.byRange['3max-btn-open-25']).toEqual({ n: 4, ok: 2 });
+  });
+});
+
+describe('filters and session options', () => {
+  it('keeps only hands whose expected answer matches the action filter', () => {
+    const pool = buildPool(realLibrary, config({ rangeIds: ['hu-bb-8'], actionFilter: ['call'] }), {}, T0);
+    expect(pool).toHaveLength(53);
+    const both = buildPool(realLibrary, config({ rangeIds: ['hu-bb-8'], actionFilter: ['call', 'profile-dependent'] }), {}, T0);
+    expect(both).toHaveLength(63);
+  });
+
+  it('can leave out the "Profil dépendant" hands', () => {
+    const pool = buildPool(realLibrary, config({ rangeIds: ['hu-bb-8'], excludeActions: ['profile-dependent'] }), {}, T0);
+    expect(pool).toHaveLength(159);
+    expect(pool.find((p) => p.hand === 'K7s')).toBeUndefined();
+  });
+
+  it('restricts marginal-hands sessions to the given hand sets', () => {
+    const s = createSession(realLibrary, config({ mode: 'marginal', handSets: { '3max-btn-open-25': ['A8s', 'K9o', '22'] }, questionCount: 10 }), {}, T0, seededRng(2))!;
+    expect(new Set(s.questions.map((q) => q.hand))).toEqual(new Set(['A8s', 'K9o', '22']));
+  });
+
+  it('gives due reviews a higher weight in random sessions', () => {
+    const items = { [itemKey('3max-btn-open-25', '72o')]: updateItem(undefined, false, T0 - 3_600_000) };
+    const pool = buildPool(realLibrary, config({ focusBoundary: false }), items, T0);
+    expect(pool.find((p) => p.hand === '72o')!.weight).toBe(3);
+    expect(pool.find((p) => p.hand === '83o')!.weight).toBe(1);
+  });
+
+  it('keeps adding questions in unlimited sessions until the player stops', () => {
+    const rng = seededRng(6);
+    let s = createSession(realLibrary, config({ questionCount: UNLIMITED, recallMistakes: false }), {}, T0, rng)!;
+    const range = realLibrary.require('3max-btn-open-25');
+    for (let i = 0; i < 70; i++) {
+      const q = currentQuestion(s)!;
+      s = answerCurrent(realLibrary, s, Object.keys(range.hands[q.hand]!)[0]!, 500, T0 + i, rng).session;
+      expect(isFinished(s)).toBe(false);
+    }
+    s = finishSession(s, T0 + 100);
+    expect(isFinished(s)).toBe(true);
+    expect(s.questions).toHaveLength(70);
+    expect(summarize(s, T0 + 100)).toMatchObject({ total: 70, correct: 70, completed: true });
   });
 });

@@ -5,7 +5,7 @@ import { MODE_LABEL } from '../../domain/progress';
 import { INTERVALS, MASTERED_BOX } from '../../domain/review';
 import { reviewQueue } from '../../domain/stats';
 import { rangeShortName } from '../../domain/situation';
-import { Empty, Segmented } from '../components/common';
+import { BackHeader, Empty, Segmented } from '../components/common';
 import { dateTime, duration, pct, plural, untilLabel } from '../format';
 import { IconChevron, IconClock, IconRefresh } from '../icons';
 import { describeSelection } from '../selection';
@@ -24,9 +24,7 @@ export function HistoryScreen({ tab }: { tab: 'sessions' | 'review' }) {
 
   return (
     <main className="screen history">
-      <header className="screen-head">
-        <h1 className="title">Historique</h1>
-      </header>
+      <BackHeader title="Historique" eyebrow="Progrès" fallback="/progress" />
 
       <Segmented<'sessions' | 'review'>
         label="Vue"
@@ -41,8 +39,8 @@ export function HistoryScreen({ tab }: { tab: 'sessions' | 'review' }) {
       {tab === 'sessions' ? (
         progress.sessions.length === 0 ? (
           <div style={{ marginTop: 16 }}>
-            <Empty icon={<IconClock />} title="Aucune session" action={<button type="button" className="btn btn-primary" onClick={() => navigate('/ranges')}>Choisir des ranges</button>}>
-              Vos sessions terminées ou interrompues apparaîtront ici.
+            <Empty icon={<IconClock />} title="Aucune session" action={<button type="button" className="btn btn-primary" onClick={() => navigate('/train')}>Choisir un entraînement</button>}>
+              Tes sessions terminées ou interrompues apparaîtront ici.
             </Empty>
           </div>
         ) : (
@@ -56,7 +54,7 @@ export function HistoryScreen({ tab }: { tab: 'sessions' | 'review' }) {
                     <small>%</small>
                   </div>
                   <div className="row-main">
-                    <div className="row-title">{describeSelection(library, s.rangeIds)}</div>
+                    <div className="row-title">{s.label ?? describeSelection(library, s.rangeIds)}</div>
                     <div className="row-sub">
                       {MODE_LABEL[s.mode]} · {s.correct}/{s.total} · {duration(s.durationMs)}
                       {!s.completed && ' · interrompue'}
@@ -75,7 +73,7 @@ export function HistoryScreen({ tab }: { tab: 'sessions' | 'review' }) {
         <>
           <div className="card review-explain">
             <p>
-              Chaque main ratée revient après <b>10 min</b>, puis <b>1 j</b>, <b>3 j</b> et <b>7 j</b> si vous répondez juste. Après {INTERVALS.length} bonnes réponses espacées, elle
+              Chaque main ratée revient après <b>10 min</b>, puis <b>1 j</b>, <b>3 j</b> et <b>7 j</b> si tu réponds juste. Après {INTERVALS.length} bonnes réponses espacées, elle
               est considérée comme maîtrisée. Une nouvelle erreur la remet au départ.
             </p>
             <div className="review-cta">
@@ -91,7 +89,7 @@ export function HistoryScreen({ tab }: { tab: 'sessions' | 'review' }) {
           {queue.inReview.length === 0 ? (
             <div style={{ marginTop: 16 }}>
               <Empty icon={<IconRefresh />} title="Rien à réviser">
-                Les mains que vous ratez apparaîtront ici, avec leur prochaine date de révision.
+                Les mains que tu rates apparaîtront ici, avec leur prochaine date de révision.
               </Empty>
             </div>
           ) : (
@@ -99,7 +97,7 @@ export function HistoryScreen({ tab }: { tab: 'sessions' | 'review' }) {
               {queue.inReview.map((w) => {
                 const range = library.get(w.rangeId)!;
                 return (
-                  <button key={`${w.rangeId}|${w.hand}`} type="button" className="row" onClick={() => navigate(`/range/${w.rangeId}/${w.hand}`)}>
+                  <button key={`${w.rangeId}|${w.hand}`} type="button" className="row" onClick={() => navigate(`/ranges/${w.rangeId}/${w.hand}`)}>
                     <span className="hand-chip">{w.hand}</span>
                     <div className="row-main">
                       <div className="row-title" style={{ fontSize: 14 }}>

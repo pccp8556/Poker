@@ -1,7 +1,7 @@
 import type { Grade } from './grading';
 import { emptyItem, updateItem, type ItemStat } from './review';
 
-export type SessionMode = 'random' | 'targeted' | 'errors' | 'review' | 'exam';
+export type SessionMode = 'random' | 'targeted' | 'errors' | 'review' | 'exam' | 'marginal';
 
 export const MODE_LABEL: Record<SessionMode, string> = {
   random: 'Aléatoire',
@@ -9,6 +9,7 @@ export const MODE_LABEL: Record<SessionMode, string> = {
   errors: 'Erreurs',
   review: 'Révision',
   exam: 'Examen',
+  marginal: 'Mains marginales',
 };
 
 /** One recorded answer (compact keys: this log is persisted). */
@@ -51,6 +52,7 @@ export interface SessionError {
 export interface SessionSummary {
   id: string;
   mode: SessionMode;
+  label?: string;
   rangeIds: string[];
   startedAt: number;
   endedAt: number;

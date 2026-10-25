@@ -1,21 +1,21 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { navigate } from '../../app/router';
 import { store, useLibrary, useStore } from '../../app/store';
-import { actionMeta } from '../../domain/actions';
 import { handKind } from '../../domain/cards';
 import { explain, formatFrequency } from '../../domain/explain';
 import type { Grade } from '../../domain/grading';
 import { isMixed } from '../../domain/library';
 import { MODE_LABEL } from '../../domain/progress';
-import { currentQuestion, isFinished } from '../../domain/quiz';
+import { currentQuestion, isFinished, isUnlimited } from '../../domain/quiz';
 import { actionBefore, FORMAT_LABEL, spotSubtitle } from '../../domain/situation';
 import { Hand } from '../components/PlayingCard';
-import { RangeGrid } from '../components/RangeGrid';
+import { colorOf, RangeGrid, useColorMode } from '../components/RangeGrid';
 import { TableFelt } from '../components/TableFelt';
 import { Empty, Sheet } from '../components/common';
-import { IconArrowRight, IconCheck, IconClose, IconFlame, IconGrid, IconTimer, IconX } from '../icons';
+import { playFeedback } from '../sound';
+import { IconArrowRight, IconCheck, IconClose, IconFlame, IconGrid, IconStop, IconTimer, IconX } from '../icons';
 
-const KIND_LABEL = { pair: 'paire', suited: 'assortie', offsuit: 'dépareillée' } as const;
+const KIND_LABEL = { pair: 'Paire', suited: 'Suited', offsuit: 'Offsuit' } as const;
 
 function vibrate(pattern: number | number[]) {
   try {
@@ -25,28 +25,48 @@ function vibrate(pattern: number | number[]) {
   }
 }
 
+/** Thinking time shown live when the "Chronomètre" setting is on. */
+function LiveTimer({ since, running }: { since: number; running: boolean }) {
+  const [now, setNow] = useState(performance.now());
+  useEffect(() => {
+    if (!running) return;
+    const id = setInterval(() => setNow(performance.now()), 100);
+    return () => clearInterval(id);
+  }, [running]);
+  const s = Math.max(0, (now - since) / 1000);
+  return (
+    <span className="timer-chip num" aria-label={`${Math.floor(s)} secondes`}>
+      <IconTimer /> {s.toFixed(1).replace('.', ',')} s
+    </span>
+  );
+}
+
 export function SessionScreen() {
   const library = useLibrary();
   const session = useStore((s) => s.data.session);
   const settings = useStore((s) => s.data.settings);
   const streak = useStore((s) => s.data.progress.streak);
+  const mode = useColorMode();
   const [feedback, setFeedback] = useState<{ grade: Grade; questionIndex: number } | null>(null);
   const [showGrid, setShowGrid] = useState(false);
   const [confirmQuit, setConfirmQuit] = useState(false);
   const [remaining, setRemaining] = useState<number | null>(null);
   const shownAt = useRef(performance.now());
+  const [shownAtState, setShownAtState] = useState(shownAt.current);
   const autoTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const exam = session?.config.mode === 'exam';
-  // While feedback is displayed, keep showing the question that was answered.
+  const unlimited = session ? isUnlimited(session.config) : false;
   const qIndex = feedback ? feedback.questionIndex : (session?.answers.length ?? 0);
   const question = session ? (feedback ? session.questions[feedback.questionIndex] : currentQuestion(session)) : null;
   const range = question ? library.get(question.rangeId) : undefined;
   const total = session?.questions.length ?? 0;
 
-  // Reset the answer timer whenever a new question appears.
   useEffect(() => {
-    if (!feedback) shownAt.current = performance.now();
+    if (!feedback) {
+      shownAt.current = performance.now();
+      setShownAtState(shownAt.current);
+    }
   }, [qIndex, feedback]);
 
   const finish = useCallback(() => {
@@ -71,20 +91,20 @@ export function SessionScreen() {
       const grade = store.answer(choice, ms);
       if (!grade) return;
       vibrate(grade.correct ? 12 : [30, 40, 30]);
+      if (store.data.settings.sounds) playFeedback(grade.correct ? 'ok' : 'ko');
       if (s.config.mode === 'exam') {
         const after = store.data.session;
         if (after && isFinished(after)) finish();
         return;
       }
       setFeedback({ grade, questionIndex: index });
-      if (grade.correct && store.data.settings.autoAdvance) {
-        autoTimer.current = setTimeout(() => next(), 900);
+      if (grade.correct && store.data.settings.correction === 'fast') {
+        autoTimer.current = setTimeout(() => next(), 850);
       }
     },
     [feedback, finish, next],
   );
 
-  // Exam timer.
   const timerSec = session?.config.timerSec ?? null;
   useEffect(() => {
     if (!exam || !timerSec || feedback || !question) {
@@ -103,7 +123,6 @@ export function SessionScreen() {
     return () => clearInterval(id);
   }, [exam, timerSec, question, feedback, answer]);
 
-  // Keyboard shortcuts (desktop): 1-9 to answer, Enter/Space to continue.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (confirmQuit || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -129,26 +148,26 @@ export function SessionScreen() {
         <Empty
           title="Aucune session en cours"
           action={
-            <button type="button" className="btn btn-primary" onClick={() => navigate('/ranges', { replace: true })}>
-              Choisir des ranges
+            <button type="button" className="btn btn-primary" onClick={() => navigate('/train', { replace: true })}>
+              Choisir un entraînement
             </button>
           }
         >
-          Lancez un entraînement depuis l’accueil ou la liste des ranges.
+          Lance un entraînement depuis l’accueil ou l’onglet Entraîner.
         </Empty>
       </main>
     );
   }
 
   const answered = session.answers.length;
-  const progress = Math.min(1, answered / total);
+  const progress = unlimited ? 0 : Math.min(1, answered / total);
   const grade = feedback?.grade;
   const strategy = range.hands[question.hand] ?? {};
   const label = (id: string) => range.actions.find((a) => a.id === id)?.label ?? id;
 
   const quit = () => {
     clearTimeout(autoTimer.current);
-    const id = store.abandonSession();
+    const id = unlimited ? store.finishSession() : store.abandonSession();
     navigate(id ? `/results/${id}` : '/', { replace: true });
   };
 
@@ -158,16 +177,14 @@ export function SessionScreen() {
         <button type="button" className="icon-btn plain" aria-label="Quitter la session" onClick={() => (answered > 0 ? setConfirmQuit(true) : quit())}>
           <IconClose />
         </button>
-        <div className="session-progress" aria-label={`Question ${Math.min(answered + 1, total)} sur ${total}`}>
-          <div className="meter">
-            <i style={{ width: `${progress * 100}%` }} />
+        <div className="session-progress" aria-label={unlimited ? `Question ${answered + 1}` : `Question ${Math.min(answered + 1, total)} sur ${total}`}>
+          <div className={`meter ${unlimited ? 'infinite' : ''}`}>
+            <i style={{ width: unlimited ? '100%' : `${progress * 100}%` }} />
           </div>
         </div>
-        <span className="session-count num">
-          {Math.min(qIndex + 1, total)}/{total}
-        </span>
-        {!exam && (
-          <span className={`streak ${streak > 0 ? 'on' : ''}`} aria-label={`Série de ${streak} bonnes réponses`}>
+        <span className="session-count num">{unlimited ? `${qIndex + 1} / ∞` : `${Math.min(qIndex + 1, total)} / ${total}`}</span>
+        {!exam && streak > 0 && (
+          <span className="streak on" aria-label={`Série de ${streak} bonnes réponses`}>
             <IconFlame /> <b className="num">{streak}</b>
           </span>
         )}
@@ -177,8 +194,10 @@ export function SessionScreen() {
         <div className="spot-line">
           <span className="badge">{FORMAT_LABEL[range.format]}</span>
           <span className="badge">{range.title}</span>
+          <span className="badge badge-gold num">{range.stackBb} BB</span>
           {exam && <span className="badge badge-gold">{MODE_LABEL.exam}</span>}
           {question.recall && <span className="badge badge-accent">Rappel</span>}
+          {settings.showTimer && !feedback && <LiveTimer since={shownAtState} running={!feedback} />}
         </div>
 
         <TableFelt range={range}>
@@ -186,10 +205,10 @@ export function SessionScreen() {
         </TableFelt>
 
         <div className="prompt">
-          <p className="prompt-context">{actionBefore(range)}</p>
           <p className="prompt-hand">
-            <b>{question.hand}</b> <span className="faint">· {KIND_LABEL[handKind(question.hand)]}</span>
+            <b>{question.hand}</b> <span className="kind-chip">{KIND_LABEL[handKind(question.hand)]}</span>
           </p>
+          <p className="prompt-context">{actionBefore(range)} · Meilleure décision selon la range ?</p>
           {question.rng !== null && (
             <p className="rng-chip">
               RNG <b className="num">{question.rng}</b>
@@ -213,7 +232,7 @@ export function SessionScreen() {
           <div className="answers" role="group" aria-label="Réponses possibles">
             {question.options.map((id, i) => (
               <button key={id} type="button" className="answer" onClick={() => answer(id)}>
-                <span className="answer-swatch" style={{ background: actionMeta(id).color }} />
+                <span className="answer-dot" style={{ background: colorOf(range, id, mode) }} />
                 <span className="answer-label">{label(id)}</span>
                 <kbd className="answer-key">{i + 1}</kbd>
               </button>
@@ -225,20 +244,20 @@ export function SessionScreen() {
               <span className="fb-icon">{grade.correct ? <IconCheck /> : <IconX />}</span>
               <div className="fb-title">
                 <strong>{grade.correct ? 'Correct' : 'Incorrect'}</strong>
-                {!grade.correct && grade.chosen && <span>Votre réponse : {label(grade.chosen)}</span>}
+                {!grade.correct && grade.chosen && <span>Ta réponse : {label(grade.chosen)}</span>}
               </div>
             </div>
 
             <div className="fb-ref">
-              <span className="fb-ref-label">Range de référence</span>
+              <span className="fb-ref-label">Range de référence{range.modified ? ' (version modifiée)' : range.origin === 'custom' ? ' (personnalisée)' : ''}</span>
               {explanation?.reference.map((r) => (
                 <div key={r.id} className="fb-action">
-                  <span className="legend-dot" style={{ background: actionMeta(r.id).color }} />
+                  <span className="legend-dot" style={{ background: colorOf(range, r.id, mode) }} />
                   <span className="fb-action-label">{r.label}</span>
                   <span className="fb-freq num">{formatFrequency(r.frequency)}</span>
                 </div>
               ))}
-              <p className="fb-desc">{explanation?.reference[0]?.description}</p>
+              {explanation?.reference[0]?.description && <p className="fb-desc">{explanation.reference[0].description}</p>}
               {isMixed(strategy) && (
                 <p className="hint">
                   Main mixte · règle {grade.rule === 'strict' ? `stricte (RNG ${grade.rng ?? '—'})` : 'tolérante : toute action jouée par la range est acceptée'}.
@@ -248,15 +267,18 @@ export function SessionScreen() {
 
             {explanation && explanation.otherStacks.length > 1 && (
               <div className="fb-stacks" aria-label="Même main aux autres profondeurs">
-                {explanation.otherStacks.map((o) => (
-                  <div key={o.rangeId} className={`fb-stack ${o.current ? 'current' : ''}`}>
-                    <span className="num">{o.stackBb} BB</span>
-                    <span className="fb-stack-action">
-                      <i className="legend-dot" style={{ background: actionMeta(o.actions[0]?.id ?? '').color }} />
-                      {o.actions.map((a) => a.label).join(' / ')}
-                    </span>
-                  </div>
-                ))}
+                {explanation.otherStacks.map((o) => {
+                  const r = library.require(o.rangeId);
+                  return (
+                    <div key={o.rangeId} className={`fb-stack ${o.current ? 'current' : ''}`}>
+                      <span className="num">{o.stackBb} BB</span>
+                      <span className="fb-stack-action">
+                        <i className="legend-dot" style={{ background: colorOf(r, o.actions[0]?.id ?? '', mode) }} />
+                        {o.actions.map((a) => a.label).join(' / ')}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
 
@@ -269,6 +291,11 @@ export function SessionScreen() {
               </button>
             </div>
           </div>
+        )}
+        {unlimited && (
+          <button type="button" className="text-btn end-btn" onClick={() => setConfirmQuit(true)}>
+            <IconStop /> Terminer la session ({answered} réponse{answered > 1 ? 's' : ''})
+          </button>
         )}
       </section>
 
@@ -285,24 +312,25 @@ export function SessionScreen() {
         <div className="grid-legend-inline">
           {range.actions.map((a) => (
             <span key={a.id}>
-              <i className="legend-dot" style={{ background: actionMeta(a.id).color }} /> {a.label}
+              <i className="legend-dot" style={{ background: colorOf(range, a.id, mode) }} /> {a.label}
             </span>
           ))}
         </div>
-        <p className="hint">Source : {library.data.source.file}, page {range.source.page}.</p>
+        <p className="hint">{range.source.page !== null ? `Source : ${library.data.source.file}, page ${range.source.page}${range.modified ? ' (modifiée par toi)' : ''}.` : 'Range personnalisée.'}</p>
       </Sheet>
 
       <Sheet open={confirmQuit} onClose={() => setConfirmQuit(false)} label="Quitter la session">
-        <h2 className="title-sm">Quitter la session ?</h2>
+        <h2 className="title-sm">{unlimited ? 'Terminer la session ?' : 'Quitter la session ?'}</h2>
         <p className="muted" style={{ marginTop: 6 }}>
-          Vos {answered} réponse{answered > 1 ? 's' : ''} sont déjà enregistrée{answered > 1 ? 's' : ''} dans vos statistiques. Vous pouvez aussi reprendre plus tard depuis l’accueil.
+          Tes {answered} réponse{answered > 1 ? 's' : ''} {answered > 1 ? 'sont' : 'est'} déjà enregistrée{answered > 1 ? 's' : ''} dans tes statistiques.
+          {unlimited ? '' : ' Tu peux aussi reprendre plus tard depuis l’accueil.'}
         </p>
         <div className="sheet-actions">
           <button type="button" className="btn btn-ghost" onClick={() => navigate('/', { replace: true })}>
             Mettre en pause
           </button>
-          <button type="button" className="btn btn-danger" onClick={quit}>
-            Terminer maintenant
+          <button type="button" className={`btn ${unlimited ? 'btn-primary' : 'btn-danger'}`} onClick={quit}>
+            {unlimited ? 'Voir le bilan' : 'Terminer maintenant'}
           </button>
         </div>
       </Sheet>

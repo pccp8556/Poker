@@ -1,19 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import { explain } from '../src/domain/explain';
-import { actionBefore, questionPrompt, seatsFor } from '../src/domain/situation';
+import { actionBefore, questionPrompt, seatsFor, situationSentence } from '../src/domain/situation';
 import { realLibrary } from './fixtures';
 
 const r = (id: string) => realLibrary.require(id);
 
 describe('situation context', () => {
   it('describes what happened before the hero acts', () => {
-    expect(actionBefore(r('3max-btn-open-25'))).toBe('Vous êtes premier à parler');
+    expect(actionBefore(r('3max-btn-open-25'))).toBe('Tu es premier à parler');
     expect(actionBefore(r('3max-sb-vs-btn-25'))).toBe('BTN minraise (2 BB)');
     expect(actionBefore(r('3max-sb-vs-btn-10'))).toBe('BTN fait tapis');
     expect(actionBefore(r('3max-sb-open-15'))).toBe('BTN fold');
     expect(actionBefore(r('3max-bb-vs-sb-25'))).toBe('BTN fold · SB relance (open raise)');
     expect(actionBefore(r('3max-bb-vs-sb-10'))).toBe('BTN fold · SB fait tapis');
-    expect(actionBefore(r('hu-sb-12'))).toBe('Vous êtes premier à parler');
+    expect(actionBefore(r('hu-sb-12'))).toBe('Tu es premier à parler');
     expect(actionBefore(r('hu-bb-12'))).toBe('SB complète (limp)');
     expect(actionBefore(r('hu-bb-8'))).toBe('SB fait tapis');
   });
@@ -35,8 +35,16 @@ describe('situation context', () => {
   });
 
   it('mentions the button for the heads-up small blind', () => {
-    expect(questionPrompt(r('hu-sb-15'))).toBe('Vous êtes SB (bouton), tapis 15 BB.');
-    expect(questionPrompt(r('3max-sb-open-10'))).toBe('Vous êtes SB, tapis 10 BB.');
+    expect(questionPrompt(r('hu-sb-15'))).toBe('Tu es SB (bouton), tapis 15 BB.');
+    expect(questionPrompt(r('3max-sb-open-10'))).toBe('Tu es SB, tapis 10 BB.');
+  });
+
+  it('describes the spot in one sentence', () => {
+    expect(situationSentence(r('3max-btn-open-25'))).toBe('Tu es au bouton, premier à parler.');
+    expect(situationSentence(r('3max-sb-vs-btn-25'))).toBe('Le bouton relance au minimum (2 BB). Tu es en small blind.');
+    expect(situationSentence(r('3max-bb-vs-sb-10'))).toBe('Le BTN se couche, la small blind fait tapis. Tu es en big blind.');
+    expect(situationSentence(r('hu-sb-8'))).toBe('Heads-up : tu es en small blind (bouton), premier à parler.');
+    expect(situationSentence(r('hu-bb-12'))).toBe('Heads-up : la small blind complète (limp). Tu es en big blind.');
   });
 
   it('explains a hand with its reference action and other stack depths', () => {

@@ -1,12 +1,12 @@
 import { useMemo } from 'react';
 import { navigate } from '../../app/router';
 import { store, useLibrary, useStore } from '../../app/store';
-import { actionMeta } from '../../domain/actions';
 import { actionLabel } from '../../domain/explain';
 import { MODE_LABEL } from '../../domain/progress';
 import { reviewQueue } from '../../domain/stats';
 import { rangeShortName } from '../../domain/situation';
 import { BackHeader, Empty, Ring } from '../components/common';
+import { colorOf, useColorMode } from '../components/RangeGrid';
 import { dateTime, duration, pct, plural, seconds } from '../format';
 import { IconCheck, IconChevron, IconHome, IconPlay, IconRefresh } from '../icons';
 import { describeSelection } from '../selection';
@@ -23,6 +23,7 @@ function verdict(acc: number | null): string {
 export function ResultsScreen({ id }: { id: string }) {
   const library = useLibrary();
   const progress = useStore((s) => s.data.progress);
+  const mode = useColorMode();
   const summary = progress.sessions.find((s) => s.id === id);
   const queue = useMemo(() => (summary ? reviewQueue(library, progress, Date.now(), summary.rangeIds) : null), [library, progress, summary]);
 
@@ -48,10 +49,10 @@ export function ResultsScreen({ id }: { id: string }) {
   const errors = summary.errors.filter((e, i, arr) => arr.findIndex((x) => x.r === e.r && x.h === e.h && x.c === e.c) === i);
 
   const replay = () => {
-    if (store.startSession(store.buildConfig(summary.rangeIds, summary.mode === 'review' ? 'random' : summary.mode, Math.max(summary.total, 5)))) navigate('/session', { replace: true });
+    if (store.startSession(store.buildConfig(summary.rangeIds, summary.mode === 'review' ? 'random' : summary.mode, undefined, { label: summary.label }))) navigate('/session', { replace: true });
   };
   const reviewErrors = () => {
-    if (store.startSession(store.buildConfig(summary.rangeIds, 'errors', 50))) navigate('/session', { replace: true });
+    if (store.startSession(store.buildConfig(summary.rangeIds, 'errors', 50, { label: 'Mes erreurs' }))) navigate('/session', { replace: true });
     else store.showToast('Aucune main à revoir dans ces ranges.', 'info');
   };
 
@@ -66,7 +67,7 @@ export function ResultsScreen({ id }: { id: string }) {
         </Ring>
         <div className="results-side">
           <p className="results-verdict">{verdict(headline)}</p>
-          <p className="muted">{describeSelection(library, summary.rangeIds)}</p>
+          <p className="muted">{summary.label ?? describeSelection(library, summary.rangeIds)}</p>
           <dl className="results-facts">
             <div>
               <dt>Bonnes réponses</dt>
@@ -93,7 +94,7 @@ export function ResultsScreen({ id }: { id: string }) {
           </h2>
           <div className="list">
             {rows.map((r) => (
-              <button key={r.rid} type="button" className="row" onClick={() => navigate(`/range/${r.rid}`)}>
+              <button key={r.rid} type="button" className="row" onClick={() => navigate(`/ranges/${r.rid}`)}>
                 <div className="row-main">
                   <div className="row-title">{rangeShortName(r.range!)}</div>
                   <div className={`meter ${r.n < 3 ? 'low' : ''}`} style={{ marginTop: 7 }}>
@@ -127,7 +128,7 @@ export function ResultsScreen({ id }: { id: string }) {
               const range = library.get(e.r);
               if (!range) return null;
               return (
-                <button key={`${e.r}-${e.h}-${i}`} type="button" className="row error-row" onClick={() => navigate(`/range/${e.r}/${e.h}`)}>
+                <button key={`${e.r}-${e.h}-${i}`} type="button" className="row error-row" onClick={() => navigate(`/ranges/${e.r}/${e.h}`)}>
                   <span className="hand-chip">{e.h}</span>
                   <div className="row-main">
                     <div className="row-sub">{rangeShortName(range)}</div>
@@ -135,7 +136,7 @@ export function ResultsScreen({ id }: { id: string }) {
                       <span className="err-yours">{e.c ? actionLabel(range, e.c) : 'Temps écoulé'}</span>
                       <span className="faint">→</span>
                       <span className="err-right">
-                        <i className="legend-dot" style={{ background: actionMeta(e.a[0] ?? '').color }} />
+                        <i className="legend-dot" style={{ background: colorOf(range, e.a[0] ?? '', mode) }} />
                         {e.a.map((a) => actionLabel(range, a)).join(' / ')}
                       </span>
                     </div>

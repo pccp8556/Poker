@@ -1,30 +1,30 @@
 import { Component, useEffect, type ReactNode } from 'react';
+import { CustomScreen } from '../ui/screens/Custom';
+import { EditorScreen } from '../ui/screens/Editor';
+import { ExplorerScreen } from '../ui/screens/Explorer';
 import { HistoryScreen } from '../ui/screens/History';
 import { HomeScreen } from '../ui/screens/Home';
-import { RangesScreen } from '../ui/screens/Ranges';
-import { RangeViewScreen } from '../ui/screens/RangeView';
+import { MarginalScreen } from '../ui/screens/Marginal';
+import { NewRangeScreen } from '../ui/screens/NewRange';
+import { ProgressScreen } from '../ui/screens/Progress';
 import { ResultsScreen } from '../ui/screens/Results';
 import { SessionScreen } from '../ui/screens/Session';
 import { SettingsScreen } from '../ui/screens/Settings';
-import { StatsScreen } from '../ui/screens/Stats';
+import { TrainScreen } from '../ui/screens/Train';
 import { ToastHost } from '../ui/components/common';
-import { IconChart, IconClock, IconGrid, IconHome, IconSettings } from '../ui/icons';
+import { IconChart, IconGear, IconGrid, IconHome, IconTarget } from '../ui/icons';
 import { navigate, useRoute } from './router';
 import { useStore } from './store';
-import { reviewQueue } from '../domain/stats';
 
 const TABS = [
   { path: '/', label: 'Accueil', icon: IconHome },
+  { path: '/train', label: 'Entraîner', icon: IconTarget },
   { path: '/ranges', label: 'Ranges', icon: IconGrid },
-  { path: '/stats', label: 'Stats', icon: IconChart },
-  { path: '/history', label: 'Historique', icon: IconClock },
-  { path: '/settings', label: 'Réglages', icon: IconSettings },
+  { path: '/progress', label: 'Progrès', icon: IconChart },
+  { path: '/settings', label: 'Réglages', icon: IconGear },
 ];
 
 function TabBar({ active }: { active: string }) {
-  const library = useStore((s) => s.library);
-  const progress = useStore((s) => s.data.progress);
-  const due = library ? reviewQueue(library, progress, Date.now()).dueCount : 0;
   return (
     <nav className="tabbar" aria-label="Navigation principale">
       {TABS.map(({ path, label, icon: Icon }) => (
@@ -39,9 +39,10 @@ function TabBar({ active }: { active: string }) {
             navigate(path, { replace: active !== '/' });
           }}
         >
-          <Icon />
+          <span className="tab-icon">
+            <Icon />
+          </span>
           {label}
-          {path === '/history' && due > 0 && <span className="tab-dot num">{due > 99 ? '99+' : due}</span>}
         </button>
       ))}
     </nav>
@@ -53,16 +54,26 @@ function Screen({ parts }: { parts: string[] }) {
   switch (head) {
     case undefined:
       return <HomeScreen />;
+    case 'train':
+      return <TrainScreen />;
+    case 'custom':
+      return <CustomScreen />;
     case 'ranges':
-      return <RangesScreen />;
     case 'range':
-      return <RangeViewScreen id={arg ?? ''} hand={arg2} />;
+      return <ExplorerScreen id={arg} hand={arg2} />;
+    case 'edit':
+      return <EditorScreen id={arg ?? ''} />;
+    case 'new':
+      return <NewRangeScreen copyOf={arg} />;
+    case 'marginal':
+      return <MarginalScreen id={arg} />;
     case 'session':
       return <SessionScreen />;
     case 'results':
       return <ResultsScreen id={arg ?? ''} />;
+    case 'progress':
     case 'stats':
-      return <StatsScreen />;
+      return <ProgressScreen />;
     case 'history':
       return <HistoryScreen tab={arg === 'review' ? 'review' : 'sessions'} />;
     case 'settings':
@@ -85,7 +96,7 @@ class ErrorBoundary extends Component<{ children: ReactNode }, { error: Error | 
             <div>
               <strong>Une erreur inattendue est survenue.</strong>
               <p style={{ marginTop: 4 }}>{this.state.error.message}</p>
-              <p style={{ marginTop: 4 }}>Votre progression est enregistrée localement.</p>
+              <p style={{ marginTop: 4 }}>Ta progression est enregistrée localement.</p>
             </div>
           </div>
           <button
@@ -111,8 +122,8 @@ export function App() {
   const error = useStore((s) => s.error);
   const route = useRoute();
   const top = route.parts[0] ?? '';
-  const tabPath = `/${top}`;
-  const showTabs = TABS.some((t) => t.path === tabPath);
+  const tabPath = top === 'stats' ? '/progress' : top === 'range' ? '/ranges' : `/${top}`;
+  const showTabs = TABS.some((t) => t.path === tabPath) || top === 'history';
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -141,8 +152,8 @@ export function App() {
   return (
     <ErrorBoundary>
       <div className="app">
-        <Screen key={route.path} parts={route.parts} />
-        {showTabs && <TabBar active={tabPath} />}
+        <Screen key={route.parts.slice(0, 1).join('/') + (top === 'edit' || top === 'results' ? route.path : '')} parts={route.parts} />
+        {showTabs && <TabBar active={top === 'history' ? '/progress' : tabPath} />}
         <ToastHost />
       </div>
     </ErrorBoundary>

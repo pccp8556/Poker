@@ -18,6 +18,22 @@ export interface SessionConfig {
   recallMistakes: boolean;
   /** Seconds per question in exam mode (null = no limit). */
   timerSec: number | null;
+  /** Only hands whose expected answer includes one of these actions. */
+  actionFilter?: string[];
+  /** Hands whose strategy includes one of these actions are left out. */
+  excludeActions?: string[];
+  /** Restricts each range to these hands (marginal-hands mode). */
+  handSets?: Record<string, string[]>;
+  /** Display name of the session (e.g. "Entraînement personnalisé"). */
+  label?: string;
+}
+
+/** questionCount value meaning "no limit": questions are added as the session goes. */
+export const UNLIMITED = 0;
+const UNLIMITED_BATCH = 30;
+
+export function isUnlimited(config: SessionConfig): boolean {
+  return config.questionCount === UNLIMITED;
 }
 
 export interface Question {
@@ -64,6 +80,8 @@ export function maxRecalls(plannedQuestions: number): number {
   return Math.max(3, Math.ceil(plannedQuestions / 3));
 }
 const BOUNDARY_WEIGHT = 3;
+/** Hands whose spaced review is due are asked more often in random sessions. */
+const DUE_WEIGHT = 3;
 
 export function ruleFor(config: SessionConfig): GradingRule {
   return config.mode === 'exam' ? 'exam' : config.grading;
@@ -78,16 +96,27 @@ export function buildPool(
 ): PoolItem[] {
   const pool: PoolItem[] = [];
   for (const rangeId of config.rangeIds) {
-    if (!library.get(rangeId)) continue;
+    const range = library.get(rangeId);
+    if (!range) continue;
     const boundary = library.boundary(rangeId);
+    const allowed = config.handSets?.[rangeId] ? new Set(config.handSets[rangeId]) : null;
     for (const hand of ALL_HANDS) {
+      if (allowed && !allowed.has(hand)) continue;
+      const strategy = range.hands[hand] ?? {};
+      if (config.excludeActions?.some((a) => (strategy[a] ?? 0) > 0)) continue;
+      if (config.actionFilter?.length && !config.actionFilter.some((a) => (strategy[a] ?? 0) > 0)) continue;
       const item = items[itemKey(rangeId, hand)];
       const base = config.focusBoundary && boundary.has(hand) ? BOUNDARY_WEIGHT : 1;
       let weight: number;
       switch (config.mode) {
         case 'random':
+          weight = base * (item && isDue(item, now) ? DUE_WEIGHT : 1);
+          break;
         case 'exam':
           weight = base;
+          break;
+        case 'marginal':
+          weight = item && isDue(item, now) ? DUE_WEIGHT : 1;
           break;
         case 'targeted':
           weight = (config.focusBoundary && boundary.has(hand) ? 1.5 : 1) * weakness(item, now);
@@ -141,10 +170,10 @@ function makeQuestion(library: Library, config: SessionConfig, rangeId: string, 
 }
 
 /** Picks the hands of a session. Errors/review sessions never repeat a hand. */
-export function pickItems(pool: readonly PoolItem[], config: SessionConfig, rng: Rng): PoolItem[] {
+export function pickItems(pool: readonly PoolItem[], config: SessionConfig, rng: Rng, howMany?: number): PoolItem[] {
   if (pool.length === 0) return [];
-  const count = Math.max(1, Math.floor(config.questionCount));
-  if (config.mode === 'errors' || config.mode === 'review') {
+  const count = Math.max(1, Math.floor(howMany ?? (isUnlimited(config) ? UNLIMITED_BATCH : config.questionCount)));
+  if ((config.mode === 'errors' || config.mode === 'review') && !isUnlimited(config)) {
     return weightedSample(pool, Math.min(count, pool.length), rng);
   }
   const picked: PoolItem[] = [];
@@ -201,6 +230,13 @@ export function answerCurrent(
   });
   const answers = [...session.answers, { questionId: question.id, grade: g, ms, at: now }];
   let questions = session.questions;
+  if (isUnlimited(session.config) && questions.length - answers.length <= 3) {
+    const more = pickItems(buildPool(library, session.config, {}, now), session.config, rng);
+    // Avoid asking the same hand twice in a row at the junction.
+    const last = questions[questions.length - 1];
+    if (more.length > 1 && last && more[0]!.hand === last.hand) more.push(more.shift()!);
+    questions = [...questions, ...more.map((p) => makeQuestion(library, session.config, p.rangeId, p.hand, rng))];
+  }
   const recalls = questions.filter((q) => q.recall).length;
   const planned = questions.length - recalls;
   if (!g.correct && session.config.recallMistakes && session.config.mode !== 'exam' && !question.recall && recalls < maxRecalls(planned)) {
@@ -211,6 +247,11 @@ export function answerCurrent(
   const next: SessionState = { ...session, questions, answers };
   if (isFinished(next)) next.finishedAt = now;
   return { session: next, grade: g, question };
+}
+
+/** Ends a session now (unlimited sessions, or stopping early): unanswered questions are dropped. */
+export function finishSession(session: SessionState, now: number): SessionState {
+  return { ...session, questions: session.questions.slice(0, session.answers.length), finishedAt: session.finishedAt ?? now };
 }
 
 export function summarize(session: SessionState, now: number): SessionSummary {
@@ -236,6 +277,7 @@ export function summarize(session: SessionState, now: number): SessionSummary {
   return {
     id: session.id,
     mode: session.config.mode,
+    label: session.config.label,
     rangeIds: session.config.rangeIds,
     startedAt: session.startedAt,
     endedAt: session.finishedAt ?? now,

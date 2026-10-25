@@ -120,6 +120,46 @@ export function actionMeta(id: string): ActionMeta {
   return META[id] ?? FALLBACK;
 }
 
+/** Labels of the canonical actions (the ones found in the PDF). */
+export const ACTION_LABELS: Record<string, string> = {
+  fold: 'Fold',
+  check: 'Check',
+  call: 'Call',
+  'profile-dependent': 'Profil dépendant',
+  'limp-fold': 'Limp / Fold',
+  'limp-call': 'Limp / Call',
+  'limp-call-vs-3bet': 'Limp / Call vs 3bet, fold sinon',
+  'limp-call-vs-2.5x': 'Limp / Call vs 2.5x, fold sinon',
+  'limp-reraise': 'Limp / Reraise',
+  'limp-reraise-vs-2.5x': 'Limp / Reraise vs 2.5x',
+  'minraise-fold': 'Minraise / Fold',
+  'minraise-call': 'Minraise / Call',
+  'raise3x-fold': '3x / Fold',
+  'raise3x-call': '3x / Call',
+  'iso-fold': 'Iso / Fold',
+  'iso-call': 'Iso / Call',
+  '3bet-nai-fold': '3bet non all-in / Fold',
+  '3bet-nai-call': '3bet non all-in / Call',
+  shove: 'Open shove',
+  '3bet-allin': '3bet All-in',
+  'iso-allin': 'Iso All-in',
+};
+
+/** Colours offered for actions created by the user. */
+export const CUSTOM_COLORS = ['#8cbcf2', '#199e70', '#f4a3a3', '#5a48c8', '#ecc94b', '#d95926', '#97305a', '#13a597', '#d55181', '#9aa5b1'];
+
+export type ColorMode = 'dark' | 'pdf';
+
+/**
+ * Colour of an action in grids and legends. "pdf" reproduces the swatch of the
+ * source document (fold included); "dark" uses the app palette.
+ */
+export function actionColor(action: { id: string; sourceColor?: string; color?: string } | undefined, mode: ColorMode = 'dark', id = action?.id ?? ''): string {
+  if (action?.color) return action.color;
+  if (mode === 'pdf' && action?.sourceColor) return action.sourceColor;
+  return actionMeta(id).color;
+}
+
 export function knownActionIds(): string[] {
   return Object.keys(META);
 }

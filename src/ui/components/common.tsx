@@ -30,10 +30,10 @@ export function Switch({ checked, onChange, label }: { checked: boolean; onChang
   return <button type="button" role="switch" aria-checked={checked} aria-label={label} className="switch" onClick={() => onChange(!checked)} />;
 }
 
-export function BackHeader({ title, eyebrow, fallback = '/', right }: { title: ReactNode; eyebrow?: ReactNode; fallback?: string; right?: ReactNode }) {
+export function BackHeader({ title, eyebrow, fallback = '/', right, onBack }: { title: ReactNode; eyebrow?: ReactNode; fallback?: string; right?: ReactNode; onBack?: () => void }) {
   return (
     <header className="screen-head with-back">
-      <button type="button" className="icon-btn" onClick={() => goBack(fallback)} aria-label="Retour">
+      <button type="button" className="icon-btn" onClick={() => (onBack ? onBack() : goBack(fallback))} aria-label="Retour">
         <IconArrowLeft />
       </button>
       <div style={{ flex: 1, minWidth: 0 }}>

@@ -1,26 +1,39 @@
 import { emptyProgress, type ProgressState, type SessionMode } from '../domain/progress';
 import type { SessionState } from '../domain/quiz';
+import { emptyUserRanges, type UserRanges } from '../domain/userRanges';
 import type { KeyValueStore } from './kv';
 
 export interface Settings {
   grading: 'tolerant' | 'strict';
-  autoAdvance: boolean;
+  /** "fast": moves on automatically after a correct answer. */
+  correction: 'detailed' | 'fast';
   focusBoundary: boolean;
   recallMistakes: boolean;
   examTimerSec: number | null;
+  /** Questions per session; 0 = unlimited. */
   defaultCount: number;
+  /** Shows the thinking time during a question (always recorded). */
+  showTimer: boolean;
+  /** Includes the "Profil dépendant" hands (HU BB 8 BB) in the questions. */
+  includeProfileDependent: boolean;
   fourColor: boolean;
+  matrixColors: 'dark' | 'pdf';
+  sounds: boolean;
   haptics: boolean;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   grading: 'tolerant',
-  autoAdvance: false,
+  correction: 'detailed',
   focusBoundary: true,
   recallMistakes: true,
   examTimerSec: null,
-  defaultCount: 20,
+  defaultCount: 25,
+  showTimer: false,
+  includeProfileDependent: true,
   fourColor: true,
+  matrixColors: 'dark',
+  sounds: true,
   haptics: true,
 };
 
@@ -45,6 +58,7 @@ export interface AppData {
   favorites: Favorite[];
   recents: Recent[];
   session: SessionState | null;
+  ranges: UserRanges;
 }
 
 export const KEYS = {
@@ -53,6 +67,7 @@ export const KEYS = {
   favorites: 'rl.favorites.v1',
   recents: 'rl.recents.v1',
   session: 'rl.session.v1',
+  ranges: 'rl.ranges.v1',
 } as const;
 
 export type DataKey = keyof typeof KEYS;
@@ -61,17 +76,20 @@ function isObject(v: unknown): v is Record<string, unknown> {
   return typeof v === 'object' && v !== null && !Array.isArray(v);
 }
 
-const MODES: SessionMode[] = ['random', 'targeted', 'errors', 'review', 'exam'];
+const MODES: SessionMode[] = ['random', 'targeted', 'errors', 'review', 'exam', 'marginal'];
 
 export function parseSettings(v: unknown): Settings | null {
   if (!isObject(v)) return null;
   const s = { ...DEFAULT_SETTINGS };
   if (v.grading === 'tolerant' || v.grading === 'strict') s.grading = v.grading;
-  for (const k of ['autoAdvance', 'focusBoundary', 'recallMistakes', 'fourColor', 'haptics'] as const) {
+  if (v.correction === 'detailed' || v.correction === 'fast') s.correction = v.correction;
+  else if (v.autoAdvance === true) s.correction = 'fast'; // setting of version 1.0
+  if (v.matrixColors === 'dark' || v.matrixColors === 'pdf') s.matrixColors = v.matrixColors;
+  for (const k of ['focusBoundary', 'recallMistakes', 'fourColor', 'haptics', 'sounds', 'showTimer', 'includeProfileDependent'] as const) {
     if (typeof v[k] === 'boolean') s[k] = v[k];
   }
   if (v.examTimerSec === null || (typeof v.examTimerSec === 'number' && v.examTimerSec > 0)) s.examTimerSec = v.examTimerSec;
-  if (typeof v.defaultCount === 'number' && v.defaultCount >= 1 && v.defaultCount <= 500) s.defaultCount = Math.round(v.defaultCount);
+  if (typeof v.defaultCount === 'number' && v.defaultCount >= 0 && v.defaultCount <= 500) s.defaultCount = Math.round(v.defaultCount);
   return s;
 }
 
@@ -111,12 +129,21 @@ export function parseSession(v: unknown): SessionState | null {
   return v as unknown as SessionState;
 }
 
+/** Structure check only; each range is fully validated when the library is built. */
+export function parseUserRanges(v: unknown): UserRanges | null {
+  if (!isObject(v) || v.version !== 1 || !isObject(v.edits) || !Array.isArray(v.custom) || !isObject(v.marginal)) return null;
+  for (const e of Object.values(v.edits)) if (!isObject(e) || !isObject(e.hands)) return null;
+  for (const m of Object.values(v.marginal)) if (!Array.isArray(m) || m.some((h) => typeof h !== 'string')) return null;
+  return v as unknown as UserRanges;
+}
+
 const PARSERS: { [K in DataKey]: (v: unknown) => AppData[K] | null } = {
   settings: parseSettings,
   progress: parseProgress,
   favorites: parseFavorites,
   recents: parseRecents,
   session: parseSession,
+  ranges: parseUserRanges,
 };
 
 export const DEFAULTS: () => AppData = () => ({
@@ -125,6 +152,7 @@ export const DEFAULTS: () => AppData = () => ({
   favorites: [],
   recents: [],
   session: null,
+  ranges: emptyUserRanges(),
 });
 
 export interface LoadResult {
@@ -172,6 +200,7 @@ export interface BackupFile {
   progress: ProgressState;
   favorites: Favorite[];
   recents: Recent[];
+  ranges?: UserRanges;
 }
 
 export function makeBackup(data: AppData, now = Date.now()): BackupFile {
@@ -183,10 +212,11 @@ export function makeBackup(data: AppData, now = Date.now()): BackupFile {
     progress: data.progress,
     favorites: data.favorites,
     recents: data.recents,
+    ranges: data.ranges,
   };
 }
 
-export function parseBackup(text: string): Omit<BackupFile, 'app' | 'format' | 'exportedAt'> {
+export function parseBackup(text: string): Omit<BackupFile, 'app' | 'format' | 'exportedAt' | 'ranges'> & { ranges: UserRanges } {
   let v: unknown;
   try {
     v = JSON.parse(text);
@@ -201,5 +231,6 @@ export function parseBackup(text: string): Omit<BackupFile, 'app' | 'format' | '
     progress,
     favorites: parseFavorites(v.favorites) ?? [],
     recents: parseRecents(v.recents) ?? [],
+    ranges: (v.ranges === undefined ? null : parseUserRanges(v.ranges)) ?? emptyUserRanges(),
   };
 }

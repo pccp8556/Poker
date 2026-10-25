@@ -5,42 +5,40 @@ import type { RangeDef } from '../../domain/types';
 function Seat({ seat, place }: { seat: SeatState; place: string }) {
   return (
     <div className={`seat seat-${place} k-${seat.kind}`}>
-      <div className="seat-avatar">
-        <span>{seat.position}</span>
+      <span className="seat-pill">
+        {seat.position}
         {seat.dealer && (
           <i className="dealer" aria-label="Bouton dealer">
             D
           </i>
         )}
-      </div>
-      {seat.action && <div className="seat-action">{seat.action}</div>}
-      {!seat.action && !seat.hero && <div className="seat-wait">à parler</div>}
+      </span>
+      {seat.action ? <span className="seat-action">{seat.action}</span> : <span className="seat-wait">à parler</span>}
     </div>
   );
 }
 
-/** Mini table showing positions and the action before the hero. */
+/** Poker table seen from the hero's seat; the hero's cards sit on the felt. */
 export function TableFelt({ range, children }: { range: RangeDef; children?: ReactNode }) {
   const seats = seatsFor(range);
-  const [, ...others] = seats;
+  const [hero, ...others] = seats;
   const places = others.length === 1 ? ['top'] : ['left', 'right'];
   return (
     <div className={`felt felt-${range.format}`}>
-      <div className="felt-surface">
-        <div className="felt-center">
-          <span className="felt-stack num">{range.stackBb} BB</span>
-          <span className="felt-label">profondeur</span>
-        </div>
+      <div className="felt-rail">
+        <div className="felt-surface" />
       </div>
       {others.map((s, i) => (
         <Seat key={s.position} seat={s} place={places[i] ?? 'top'} />
       ))}
-      <div className="felt-hero">
-        <div className="hero-tag">
-          <span>{seats[0]?.position}</span>
-          {seats[0]?.dealer && <i className="dealer">D</i>}
-        </div>
-        {children}
+      <div className="felt-center">
+        <span className="felt-label">Tapis</span>
+        <span className="felt-stack num">{range.stackBb} BB</span>
+      </div>
+      <div className="felt-cards">{children}</div>
+      <div className="hero-pill">
+        Toi · {hero?.position}
+        {hero?.dealer && <i className="dealer">D</i>}
       </div>
     </div>
   );

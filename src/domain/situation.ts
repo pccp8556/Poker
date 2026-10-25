@@ -87,13 +87,47 @@ export function actionBefore(range: RangeDef): string {
     }
   })();
   const parts = [...folds, ...(villain ? [villain] : [])];
-  return parts.length ? parts.join(' · ') : 'Vous êtes premier à parler';
+  return parts.length ? parts.join(' · ') : 'Tu es premier à parler';
 }
 
 /** Format + spot description without repeating the format (e.g. "3-max · Open raise"). */
 export function spotSubtitle(range: RangeDef): string {
   if (range.format === 'hu') return range.subtitle;
   return `${FORMAT_LABEL[range.format]} · ${range.subtitle.replace(/\s*·\s*3-max$/i, '')}`;
+}
+
+const POSITION_PHRASE: Record<Position, string> = {
+  BTN: 'au bouton',
+  SB: 'en small blind',
+  BB: 'en big blind',
+};
+
+/** Sentence describing the spot, e.g. "Le BTN relance au minimum (2 BB). Tu es en small blind." */
+export function situationSentence(range: RangeDef): string {
+  const pos = range.format === 'hu' && range.hero === 'SB' ? 'en small blind (bouton)' : POSITION_PHRASE[range.hero];
+  const prefix = range.format === 'hu' ? 'Heads-up : ' : '';
+  const folds = seatsFor(range)
+    .filter((s) => s.kind === 'folded')
+    .map((s) => `le ${s.position} se couche`);
+  const v = range.villain ? `${range.villain === 'BTN' ? 'le bouton' : range.villain === 'SB' ? 'la small blind' : 'la big blind'}` : '';
+  const villain = (() => {
+    switch (range.scenario) {
+      case 'vs-minraise':
+        return `${v} relance au minimum (2 BB)`;
+      case 'vs-open':
+        return `${v} relance`;
+      case 'vs-shove':
+        return `${v} fait tapis`;
+      case 'vs-limp':
+        return `${v} complète (limp)`;
+      default:
+        return null;
+    }
+  })();
+  const before = [...folds, ...(villain ? [villain] : [])];
+  if (!before.length) return `${prefix}${prefix ? 'tu' : 'Tu'} es ${pos}, premier à parler.`;
+  const text = before.join(', ');
+  return `${prefix}${prefix ? text : text.charAt(0).toUpperCase() + text.slice(1)}. Tu es ${pos}.`;
 }
 
 export function rangeShortName(range: RangeDef): string {
@@ -111,5 +145,5 @@ export function rangeSituation(range: RangeDef): SituationType {
 /** Human description of the spot used in the question header. */
 export function questionPrompt(range: RangeDef): string {
   const pos = range.format === 'hu' && range.hero === 'SB' ? 'SB (bouton)' : range.hero;
-  return `Vous êtes ${pos}, tapis ${range.stackBb} BB.`;
+  return `Tu es ${pos}, tapis ${range.stackBb} BB.`;
 }

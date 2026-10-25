@@ -1,6 +1,6 @@
 {
-  "name": "Range Lab — Entraînement aux ranges",
-  "short_name": "Range Lab",
+  "name": "Expresso Ranges",
+  "short_name": "Expresso Ranges",
   "description": "Entraînement aux ranges préflop Spin & Go : quiz, corrections, statistiques et révision des erreurs.",
   "lang": "fr",
   "start_url": "./",

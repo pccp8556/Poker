@@ -2,7 +2,7 @@ import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
   appId: 'fr.rangelab.app',
-  appName: 'Range Lab',
+  appName: 'Expresso Ranges',
   webDir: 'dist',
   backgroundColor: '#090c0b',
   android: {

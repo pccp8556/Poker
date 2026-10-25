@@ -33,7 +33,16 @@ export async function setupPlatform() {
 
     // Make sure pending writes reach the disk when the app goes to background.
     await CapApp.addListener('pause', () => void store.flush());
+    store.setStoragePersisted(true); // SharedPreferences are never evicted by the system
     return;
+  }
+
+  // Ask the browser not to evict the local data under storage pressure.
+  try {
+    const persisted = (await navigator.storage?.persisted?.()) || (await navigator.storage?.persist?.());
+    store.setStoragePersisted(Boolean(persisted));
+  } catch {
+    store.setStoragePersisted(false);
   }
 
   // Web: offline cache through a service worker (production builds only).
