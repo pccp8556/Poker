@@ -99,6 +99,11 @@
   opacity: 0.9;
 }
 
+/* Heads-up: the villain sits top centre, keep the centre text below its label. */
+.felt-hu .felt-center {
+  margin-top: 30px;
+}
+
 .felt-stack {
   font-family: var(--font-display);
   font-size: 22px;
@@ -593,9 +598,28 @@
   }
 }
 
+@media (max-height: 660px) {
+  .spot-line {
+    display: none;
+  }
+  .session-stage {
+    gap: 6px;
+    padding-bottom: 8px;
+  }
+  .prompt {
+    margin-top: 2px;
+  }
+}
+
 @media (max-height: 600px) {
   .felt {
     height: 176px;
+  }
+  .felt-hu .felt-center {
+    margin-top: 22px;
+  }
+  .seat-wait {
+    display: none;
   }
   .seat-avatar {
     width: 38px;
