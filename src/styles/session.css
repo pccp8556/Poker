@@ -100,19 +100,21 @@
     inset 0 0 50px rgba(0, 0, 0, 0.5);
 }
 
+/* One line, high on the felt: never covered by the hero's cards. */
 .felt-center {
   position: absolute;
   left: 50%;
-  top: 30%;
+  top: 25%;
   transform: translateX(-50%);
   display: flex;
-  flex-direction: column;
-  align-items: center;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
   pointer-events: none;
 }
 
 .felt-hu .felt-center {
-  top: 34%;
+  top: 29%;
 }
 
 .felt-label {
@@ -125,7 +127,7 @@
 
 .felt-stack {
   font-family: var(--font-display);
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   color: rgba(255, 255, 255, 0.92);
 }
@@ -643,6 +645,25 @@
   }
   to {
     background-position: 150% 0;
+  }
+}
+
+/* Narrow phones: seats move to the rail ends so their labels clear the centre */
+@media (max-width: 380px) {
+  .seat-left {
+    left: 1%;
+  }
+  .seat-right {
+    right: 1%;
+  }
+  .seat-pill {
+    padding: 0 12px;
+  }
+  .felt-stack {
+    font-size: 17px;
+  }
+  .felt-label {
+    font-size: 9.5px;
   }
 }
 

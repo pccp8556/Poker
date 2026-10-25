@@ -6,9 +6,9 @@ L’application Android embarque exactement le build web (`dist/`) dans un WebVi
 | | |
 |---|---|
 | Identifiant | `fr.rangelab.app` (débogage : `fr.rangelab.app.debug`, installable à côté) |
-| Nom | Range Lab |
+| Nom | Expresso Ranges |
 | SDK | min 24 (Android 7), cible / compilation 36 |
-| Version | `versionName 1.0.0`, `versionCode 1` (dans `android/app/build.gradle`) |
+| Version | `versionName 1.1.0`, `versionCode 2` (dans `android/app/build.gradle`) |
 | Stockage | Capacitor Preferences (SharedPreferences) |
 | Bouton retour | ferme une feuille ouverte, sinon page précédente, quitte depuis l’accueil |
 | Hors ligne | 100 % (aucun accès réseau requis) |

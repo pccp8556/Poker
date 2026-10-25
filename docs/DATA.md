@@ -67,6 +67,14 @@ et chaque entrée de légende est un petit carré de la même couleur suivi du l
 Les fréquences sont explicites (`{ action: fréquence }`) pour pouvoir représenter des stratégies mixtes
 si une autre source en fournit. Les identifiants d’actions sont communs à toutes les ranges.
 
+## Ranges modifiées ou ajoutées dans l’application
+
+Le fichier `src/data/ranges.json` n’est jamais modifié par l’application. Les modifications et les
+ranges créées sont enregistrées à part sur l’appareil (`rl.ranges.v1`), revalidées au démarrage (une
+donnée invalide est écartée et signalée), marquées « Modifiée » ou « Personnalisée » partout, et incluses
+dans l’export de sauvegarde. Une range du PDF modifiée peut être restaurée à tout moment. Voir
+[RANGES.md](RANGES.md).
+
 ## Points d’attention (à valider par vous)
 
 - **Pas de fréquences dans le document** : chaque case est d’une seule couleur, donc chaque main a une

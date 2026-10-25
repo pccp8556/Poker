@@ -17,13 +17,21 @@ Génération (`quiz.ts`) :
 - option « mains limites » (par défaut) : les mains dont l’action diffère d’une voisine dans la grille
   sont tirées 3 fois plus souvent ; les mains évidentes (72o…) restent présentes mais plus rares ;
 - rappel d’erreur : une main ratée est reposée 3 questions plus tard (une fois, hors examen), dans la
-  limite d’un tiers de la session.
+  limite d’un tiers de la session ;
+- sessions de 10, 25 ou 50 questions, ou **illimitées** (nouvelles questions ajoutées au fil de l’eau,
+  bouton « Terminer la session ») ;
+- option « Inclure Profil dépendant » : si elle est désactivée, les 10 mains concernées ne sont pas posées ;
+- correction « Rapide » : après une bonne réponse, la question suivante s’affiche seule ; « Détaillée » :
+  la correction reste affichée jusqu’à « Continuer ».
 
 ## Modes
 
 | Mode | Contenu |
 |---|---|
-| Aléatoire | Mains de la sélection, tirage pondéré ci-dessus |
+| Rapide | Toutes les ranges, tirage pondéré ; les révisions dues sont posées 3 fois plus souvent |
+| Aléatoire / par range | Mains de la sélection, tirage pondéré ci-dessus |
+| Personnalisé | Filtres combinés : format, situation, profondeur, ranges, **type d’action attendu** (libellés exacts) |
+| Mains marginales | Uniquement les mains marginales de chaque range (frontière calculée ou sélection personnelle) |
 | Ciblé | Priorité aux mains ratées, à faible réussite lissée, puis aux mains jamais vues |
 | Erreurs | Uniquement les mains en cours de révision (ratées et pas encore maîtrisées) |
 | Révision | Uniquement les mains ratées dont la révision est due |
