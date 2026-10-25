@@ -58,6 +58,11 @@ export interface PoolItem {
 
 /** Gap (in questions) before a missed hand is asked again. */
 export const RECALL_GAP = 3;
+
+/** Re-asks are capped so that a session never grows by more than a third. */
+export function maxRecalls(plannedQuestions: number): number {
+  return Math.max(3, Math.ceil(plannedQuestions / 3));
+}
 const BOUNDARY_WEIGHT = 3;
 
 export function ruleFor(config: SessionConfig): GradingRule {
@@ -196,7 +201,9 @@ export function answerCurrent(
   });
   const answers = [...session.answers, { questionId: question.id, grade: g, ms, at: now }];
   let questions = session.questions;
-  if (!g.correct && session.config.recallMistakes && session.config.mode !== 'exam' && !question.recall) {
+  const recalls = questions.filter((q) => q.recall).length;
+  const planned = questions.length - recalls;
+  if (!g.correct && session.config.recallMistakes && session.config.mode !== 'exam' && !question.recall && recalls < maxRecalls(planned)) {
     const at = Math.min(answers.length + RECALL_GAP, questions.length);
     const recall = makeQuestion(library, session.config, question.rangeId, question.hand, rng, true);
     questions = [...questions.slice(0, at), recall, ...questions.slice(at)];

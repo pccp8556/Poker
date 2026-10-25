@@ -11,18 +11,22 @@ export interface ActionMeta {
   description: string;
 }
 
+// Assigned per action family, then stepped in lightness so that every pair of
+// actions appearing together in a range stays distinguishable, including for
+// colour-blind users (validated with OKLab ΔE ≥ 15 normal vision, ≥ 8 under
+// protan/deutan simulation — see docs/DESIGN.md).
 const PALETTE = {
-  fold: '#34403d',
-  check: '#4a5866',
-  call: '#3d8bdb',
-  raiseCall: '#2fa36b',
-  raiseFold: '#e0574f',
-  allIn: '#7c5cf5',
-  limpCall: '#13a597',
-  limpFold: '#c9a227',
-  limpCond: '#e7843c',
-  limpRaise: '#b0344f',
-  special: '#d4609b',
+  fold: '#2b3533',
+  check: '#3e4a56',
+  call: '#8cbcf2',
+  raiseCall: '#199e70',
+  raiseFold: '#f4a3a3',
+  allIn: '#5a48c8',
+  limpCall: '#005c00',
+  limpFold: '#ecc94b',
+  limpCond: '#d95926',
+  limpRaise: '#97305a',
+  special: '#d55181',
 };
 
 const META: Record<string, ActionMeta> = {

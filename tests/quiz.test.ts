@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { sortActionIds } from '../src/domain/actions';
 import { itemKey } from '../src/domain/progress';
-import { answerCurrent, buildPool, createSession, currentQuestion, isFinished, pickItems, RECALL_GAP, spreadRepeats, summarize, type SessionConfig } from '../src/domain/quiz';
+import { answerCurrent, buildPool, createSession, currentQuestion, isFinished, maxRecalls, pickItems, RECALL_GAP, spreadRepeats, summarize, type SessionConfig } from '../src/domain/quiz';
 import { updateItem, type ItemStat } from '../src/domain/review';
 import { seededRng } from '../src/domain/rng';
 import { realLibrary, syntheticLibrary } from './fixtures';
@@ -154,6 +154,19 @@ describe('answering', () => {
     const recall = s1.questions[1 + RECALL_GAP]!;
     expect(recall.recall).toBe(true);
     expect(recall.hand).toBe(q.hand);
+  });
+
+  it('caps the number of re-asks to a third of the session', () => {
+    const rng = seededRng(8);
+    let s = createSession(realLibrary, config({ questionCount: 12 }), {}, T0, rng)!;
+    const range = realLibrary.require('3max-btn-open-25');
+    while (!isFinished(s)) {
+      const q = currentQuestion(s)!;
+      const wrong = q.options.find((o) => !(o in range.hands[q.hand]!))!;
+      s = answerCurrent(realLibrary, s, wrong, 500, T0, rng).session;
+    }
+    expect(s.questions.filter((q) => q.recall)).toHaveLength(maxRecalls(12));
+    expect(s.questions).toHaveLength(12 + maxRecalls(12));
   });
 
   it('never re-asks in exam mode', () => {

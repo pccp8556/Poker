@@ -11,7 +11,7 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:e2e": "node --test e2e/",
+    "test:e2e": "node --test e2e/app.test.mjs",
     "check": "npm run typecheck && npm test && npm run build && npm run test:e2e",
     "data:extract": "python3 scripts/extract_ranges.py",
     "data:verify": "python3 scripts/verify_ranges.py",
@@ -37,6 +37,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "playwright": "^1.63.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
     "vitest": "^5.0.5"

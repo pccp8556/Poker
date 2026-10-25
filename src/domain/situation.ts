@@ -90,6 +90,12 @@ export function actionBefore(range: RangeDef): string {
   return parts.length ? parts.join(' · ') : 'Vous êtes premier à parler';
 }
 
+/** Format + spot description without repeating the format (e.g. "3-max · Open raise"). */
+export function spotSubtitle(range: RangeDef): string {
+  if (range.format === 'hu') return range.subtitle;
+  return `${FORMAT_LABEL[range.format]} · ${range.subtitle.replace(/\s*·\s*3-max$/i, '')}`;
+}
+
 export function rangeShortName(range: RangeDef): string {
   return `${range.title} · ${range.stackBb} BB`;
 }
