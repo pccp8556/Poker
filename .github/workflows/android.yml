@@ -1,0 +1,53 @@
+name: Android APK
+
+# Builds a debug APK on every push to the development branches and on demand.
+# A signed release APK is also produced when the signing secrets are configured
+# (RANGELAB_KEYSTORE_BASE64, RANGELAB_KEYSTORE_PASSWORD, RANGELAB_KEY_ALIAS, RANGELAB_KEY_PASSWORD).
+on:
+  workflow_dispatch:
+  push:
+    branches: ['main', 'ccr-**']
+    paths-ignore: ['**.md', 'docs/**']
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      HAS_KEYSTORE: ${{ secrets.RANGELAB_KEYSTORE_BASE64 != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+      - run: npm ci
+      - run: npm run build
+      - run: npx cap sync android
+      - name: Debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon
+      - uses: actions/upload-artifact@v4
+        with:
+          name: range-lab-debug-apk
+          path: android/app/build/outputs/apk/debug/*.apk
+      - name: Release APK (signed)
+        if: env.HAS_KEYSTORE == 'true'
+        env:
+          KEYSTORE: ${{ secrets.RANGELAB_KEYSTORE_BASE64 }}
+          RANGELAB_KEYSTORE_PASSWORD: ${{ secrets.RANGELAB_KEYSTORE_PASSWORD }}
+          RANGELAB_KEY_ALIAS: ${{ secrets.RANGELAB_KEY_ALIAS }}
+          RANGELAB_KEY_PASSWORD: ${{ secrets.RANGELAB_KEY_PASSWORD }}
+        working-directory: android
+        run: |
+          echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
+          RANGELAB_KEYSTORE="$RUNNER_TEMP/release.jks" ./gradlew assembleRelease --no-daemon
+      - uses: actions/upload-artifact@v4
+        if: env.HAS_KEYSTORE == 'true'
+        with:
+          name: range-lab-release-apk
+          path: android/app/build/outputs/apk/release/*.apk

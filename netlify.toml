@@ -1,0 +1,42 @@
+# Netlify: build from the GitHub repository.
+# Every branch / pull request gets its own preview URL (Deploy Previews / Branch deploys);
+# the production URL only follows the branch chosen in the Netlify UI.
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"
+  # The e2e dev dependency must not try to download browsers on Netlify.
+  PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD = "1"
+
+# The app uses hash routes (#/stats), so every page is index.html; this rule
+# only protects against a path typed by hand.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Hashed assets never change: cache them for a year.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Always revalidate the entry points so a new deploy is picked up immediately.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    X-Frame-Options = "DENY"
