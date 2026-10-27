@@ -333,7 +333,7 @@ function TableSession() {
         )}
       </div>
 
-      <section className="session-dock">
+      <section className={`session-dock${!grade && !heroTurn ? ' waiting' : ''}`}>
         {!grade ? (
           <ActionBar key={decisionKey} hand={hand} disabled={!heroTurn || confirmQuit || showGrid} onPress={press} />
         ) : (

@@ -576,8 +576,9 @@
   transition: opacity 0.2s;
 }
 
-.actionbar[aria-busy='true'] {
-  opacity: 0.55;
+/* Like a real client, the controls disappear while the others act (the space is kept). */
+.session-dock.waiting .actionbar {
+  visibility: hidden;
 }
 
 .ab-sizing {
@@ -1141,21 +1142,23 @@
   }
 }
 
-/* Narrow table (feedback open in landscape, small phones): chips move closer to the players */
-@container (max-width: 520px) {
-  .bet-left {
-    left: 9%;
-    top: 31%;
-  }
-  .bet-right {
-    right: 9%;
-    top: 31%;
-  }
-  .pot {
-    top: 44%;
-  }
-  .ptable-mark {
-    display: none;
+/* Narrow table (feedback open in landscape): chips move closer to the players, below their labels */
+@media (orientation: landscape) {
+  @container (max-width: 520px) {
+    .bet-left {
+      left: 9%;
+      top: 43%;
+    }
+    .bet-right {
+      right: 9%;
+      top: 43%;
+    }
+    .pot {
+      top: 30%;
+    }
+    .ptable-mark {
+      display: none;
+    }
   }
 }
 
