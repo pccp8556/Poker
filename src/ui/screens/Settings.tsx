@@ -31,7 +31,7 @@ function StackedRow({ title, sub, children }: { title: string; sub?: ReactNode; 
   );
 }
 
-export const APP_VERSION = '1.1.0';
+export const APP_VERSION = '1.2.0';
 
 export function SettingsScreen() {
   const library = useLibrary();
@@ -148,9 +148,9 @@ export function SettingsScreen() {
           <SettingRow title="Inclure « Profil dépendant »" sub="10 mains HU BB 8 BB. La réponse attendue est « Profil dépendant » : le document ne tranche pas.">
             <Switch label="Inclure Profil dépendant" checked={settings.includeProfileDependent} onChange={(v) => set({ includeProfileDependent: v })} />
           </SettingRow>
-          <StackedRow title="Temps par question en examen" sub="Sans réponse dans le temps imparti, la question est comptée fausse.">
+          <StackedRow title="Temps par décision en examen" sub="Sans action dans le temps imparti, la main est comptée fausse.">
             <Segmented<number>
-              label="Temps par question en examen"
+              label="Temps par décision en examen"
               value={settings.examTimerSec ?? 0}
               onChange={(v) => set({ examTimerSec: v || null })}
               options={[

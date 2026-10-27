@@ -222,7 +222,8 @@ export function answerCurrent(
 ): { session: SessionState; grade: Grade; question: Question } {
   const question = currentQuestion(session);
   if (!question) throw new Error('La session est terminée');
-  if (chosen !== null && !question.options.includes(chosen)) throw new Error(`Réponse invalide : ${chosen}`);
+  // A played line that matches no legend action is recorded as "line:<description>" (always wrong).
+  if (chosen !== null && !chosen.startsWith('line:') && !question.options.includes(chosen)) throw new Error(`Réponse invalide : ${chosen}`);
   const range = library.require(question.rangeId);
   const g = grade(range.hands[question.hand] ?? {}, chosen, ruleFor(session.config), {
     rng: question.rng,
@@ -247,6 +248,12 @@ export function answerCurrent(
   const next: SessionState = { ...session, questions, answers };
   if (isFinished(next)) next.finishedAt = now;
   return { session: next, grade: g, question };
+}
+
+/** Actions the grading rule accepts for this question (used to script the simulated hand). */
+export function expectedActions(library: Library, session: SessionState, question: Question): string[] {
+  const range = library.require(question.rangeId);
+  return grade(range.hands[question.hand] ?? {}, null, ruleFor(session.config), { rng: question.rng, order: question.options }).accepted;
 }
 
 /** Ends a session now (unlimited sessions, or stopping early): unanswered questions are dropped. */

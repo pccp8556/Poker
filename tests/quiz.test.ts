@@ -142,6 +142,13 @@ describe('answering', () => {
     expect(() => answerCurrent(realLibrary, s, 'iso-allin', 0, T0, seededRng(2))).toThrow(/invalide/);
   });
 
+  it('records a played line that matches no action of the range as a wrong answer', () => {
+    const s = createSession(realLibrary, config(), {}, T0, seededRng(2))!;
+    const { session, grade } = answerCurrent(realLibrary, s, 'line:Tapis (25 BB)', 800, T0, seededRng(2));
+    expect(grade).toMatchObject({ correct: false, score: 0, chosen: 'line:Tapis (25 BB)' });
+    expect(session.answers).toHaveLength(1);
+  });
+
   it('re-asks a missed hand a few questions later (once)', () => {
     const rng = seededRng(4);
     const s0 = createSession(realLibrary, config({ questionCount: 10 }), {}, T0, rng)!;

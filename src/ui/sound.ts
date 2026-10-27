@@ -40,3 +40,16 @@ export function playFeedback(kind: 'ok' | 'ko') {
     tone(c, 174.6, t + 0.09, 0.26, 0.05, 'triangle');
   }
 }
+
+/** Table sounds: chips for a bet or a call, a soft swish for a fold or a check. */
+export function playAction(kind: 'fold' | 'check' | 'call' | 'raise' | 'allin') {
+  const c = context();
+  if (!c) return;
+  const t = c.currentTime;
+  if (kind === 'fold' || kind === 'check') {
+    tone(c, 320, t, 0.08, 0.025, 'triangle');
+    return;
+  }
+  const clicks = kind === 'allin' ? 4 : kind === 'raise' ? 3 : 2;
+  for (let i = 0; i < clicks; i++) tone(c, 2400 - i * 180, t + i * 0.045, 0.05, 0.03, 'square');
+}

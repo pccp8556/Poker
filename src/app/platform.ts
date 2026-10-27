@@ -1,5 +1,6 @@
 import { App as CapApp } from '@capacitor/app';
 import { Capacitor } from '@capacitor/core';
+import { ScreenOrientation } from '@capacitor/screen-orientation';
 import { SplashScreen } from '@capacitor/splash-screen';
 import { StatusBar, Style } from '@capacitor/status-bar';
 import { currentPath, goBack } from './router';
@@ -14,6 +15,8 @@ export async function setupPlatform() {
     } catch {
       /* status bar plugin unavailable */
     }
+    // The app is used in portrait; only the training table switches to landscape.
+    await ScreenOrientation.lock({ orientation: 'portrait' }).catch(() => undefined);
     await SplashScreen.hide().catch(() => undefined);
 
     await CapApp.addListener('backButton', () => {
@@ -50,4 +53,17 @@ export async function setupPlatform() {
     navigator.serviceWorker.register('./sw.js').catch(() => undefined);
   }
   window.addEventListener('pagehide', () => void store.flush());
+}
+
+/** Training table: landscape and full screen on Android, as in a real poker client. */
+export function enterTableMode() {
+  if (!Capacitor.isNativePlatform()) return;
+  void ScreenOrientation.lock({ orientation: 'landscape' }).catch(() => undefined);
+  void StatusBar.hide().catch(() => undefined);
+}
+
+export function leaveTableMode() {
+  if (!Capacitor.isNativePlatform()) return;
+  void ScreenOrientation.lock({ orientation: 'portrait' }).catch(() => undefined);
+  void StatusBar.show().catch(() => undefined);
 }

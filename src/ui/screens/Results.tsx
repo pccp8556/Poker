@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { navigate } from '../../app/router';
 import { store, useLibrary, useStore } from '../../app/store';
 import { actionLabel } from '../../domain/explain';
+import { choiceLabel } from '../../domain/play';
 import { MODE_LABEL } from '../../domain/progress';
 import { reviewQueue } from '../../domain/stats';
 import { rangeShortName } from '../../domain/situation';
@@ -133,7 +134,7 @@ export function ResultsScreen({ id }: { id: string }) {
                   <div className="row-main">
                     <div className="row-sub">{rangeShortName(range)}</div>
                     <div className="err-line">
-                      <span className="err-yours">{e.c ? actionLabel(range, e.c) : 'Temps écoulé'}</span>
+                      <span className="err-yours">{choiceLabel(range, e.c)}</span>
                       <span className="faint">→</span>
                       <span className="err-right">
                         <i className="legend-dot" style={{ background: colorOf(range, e.a[0] ?? '', mode) }} />

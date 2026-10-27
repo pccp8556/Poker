@@ -8,7 +8,10 @@ Application d’entraînement aux ranges **Spin & Go (3-max et heads-up)**, cons
 - **Consulter, modifier et ajouter des ranges** : explorateur (recherche, zoom, couleurs du PDF),
   éditeur au pinceau, fréquences mixtes, saisie en notation poker (`22+, A2s+, KTo+`), création de
   nouvelles situations ou profondeurs ; la grille du PDF reste intacte et restaurable
-- Quiz contextualisé : grande table, positions, action adverse, profondeur, cartes réelles
+- **Entraînement en conditions de jeu** : table de client de poker (paysage sur Android), blindes posées,
+  boutons Passer / Suivre / Relancer à X avec Min. / 3 BB / Pot / Max. et curseur ; l’adversaire va au
+  bout de l’action (il relance ton minraise, fait tapis sur ton 3bet, relance ton limp) pour tester la
+  deuxième partie de chaque plan
 - Correction fondée uniquement sur la range de référence (ou ta version modifiée), avec la même main
   aux autres profondeurs
 - Modes : rapide, personnalisé (filtres combinés dont le type d’action attendu), par range, ciblé,
@@ -47,6 +50,7 @@ src/
     notation.ts        notation poker « 22+, A2s+, KTo+ » (lecture et écriture)
     grading.ts         règles de correction (tolérante, stricte, examen)
     quiz.ts            génération des sessions, rappels d’erreurs, bilan
+    play.ts            main simulée à la table (tailles, réactions adverses, ligne jouée)
     review.ts          révision espacée (boîtes de Leitner)
     progress.ts        enregistrement des réponses
     stats.ts           statistiques et file de révision
@@ -67,7 +71,7 @@ docs/                  documentation détaillée
 ## Documentation
 
 - [docs/DATA.md](docs/DATA.md) — extraction, contrôles et points d’attention sur les ranges
-- [docs/TRAINING.md](docs/TRAINING.md) — règles de correction, modes, révision, statistiques
+- [docs/TRAINING.md](docs/TRAINING.md) — main simulée, règles de correction, modes, révision, statistiques
 - [docs/RANGES.md](docs/RANGES.md) — consulter, modifier et ajouter des ranges
 - [docs/NETLIFY.md](docs/NETLIFY.md) — mise en ligne et prévisualisation
 - [docs/ANDROID.md](docs/ANDROID.md) — compilation des APK (débogage et production)

@@ -11,11 +11,100 @@ const BASE = `http://localhost:${PORT}/`;
 const data = JSON.parse(readFileSync(new URL('../src/data/ranges.json', import.meta.url), 'utf8'));
 const byId = new Map(data.ranges.map((r) => [r.id, r]));
 
-/** Label of the reference action of a PDF range for a hand. */
-function truth(rangeId, hand) {
+/** Reference action of a PDF range for a hand (id and label). */
+function truthAction(rangeId, hand) {
   const r = byId.get(rangeId);
   const [actionId] = Object.keys(r.hands[hand]);
-  return r.actions.find((a) => a.id === actionId).label;
+  return { id: actionId, label: r.actions.find((a) => a.id === actionId).label };
+}
+
+/**
+ * How each plan is played at the table: first decision, then (for two-step
+ * plans) the answer to the opponent's raise — a function of that raise.
+ */
+const FIRST = {
+  fold: ['fold'],
+  check: ['call'],
+  call: ['call'],
+  'profile-dependent': ['call'],
+  shove: ['max', 'raise'],
+  '3bet-allin': ['max', 'raise'],
+  'iso-allin': ['max', 'raise'],
+  'minraise-fold': ['min', 'raise'],
+  'minraise-call': ['min', 'raise'],
+  'raise3x-fold': ['preset', 'raise'],
+  'raise3x-call': ['preset', 'raise'],
+  '3bet-nai-fold': ['min', 'raise'],
+  '3bet-nai-call': ['min', 'raise'],
+  'iso-fold': ['min', 'raise'],
+  'iso-call': ['min', 'raise'],
+  'limp-fold': ['call'],
+  'limp-call': ['call'],
+  'limp-reraise': ['call'],
+  'limp-reraise-vs-2.5x': ['call'],
+  'limp-call-vs-3bet': ['call'],
+  'limp-call-vs-2.5x': ['call'],
+};
+const SECOND = {
+  fold: () => ['fold'],
+  call: () => ['call'],
+  reraise: () => ['max', 'raise'],
+  callUnlessAllIn: (reaction) => (reaction === 'allin' ? ['fold'] : ['call']),
+};
+const THEN = {
+  'minraise-fold': SECOND.fold,
+  'minraise-call': SECOND.call,
+  'raise3x-fold': SECOND.fold,
+  'raise3x-call': SECOND.call,
+  '3bet-nai-fold': SECOND.fold,
+  '3bet-nai-call': SECOND.call,
+  'iso-fold': SECOND.fold,
+  'iso-call': SECOND.call,
+  'limp-fold': SECOND.fold,
+  'limp-call': SECOND.call,
+  'limp-reraise': SECOND.reraise,
+  'limp-reraise-vs-2.5x': SECOND.reraise,
+  'limp-call-vs-3bet': SECOND.callUnlessAllIn,
+  'limp-call-vs-2.5x': SECOND.callUnlessAllIn,
+};
+
+async function presses(page, keys) {
+  for (const k of keys) {
+    if (k === 'fold') await page.click('.ab-fold');
+    else if (k === 'call') await page.click('.ab-call');
+    else if (k === 'raise') await page.click('.ab-raise');
+    else if (k === 'min') await page.locator('.ab-presets button').nth(0).click();
+    else if (k === 'preset') await page.locator('.ab-presets button').nth(1).click();
+    else if (k === 'max') await page.locator('.ab-presets button').nth(3).click();
+  }
+}
+
+/** Waits until the hero has to act again after the opponent's answer; returns that answer. */
+async function waitForReaction(page) {
+  await page.waitForFunction(() => {
+    const m = document.querySelector('main.session');
+    return m?.dataset.phase === 'hero' && m.dataset.reaction !== '';
+  });
+  return page.locator('main.session').getAttribute('data-reaction');
+}
+
+/** Plays a plan of the range at the table, using the client's buttons. */
+async function playAction(page, actionId) {
+  await page.waitForSelector('main.session[data-phase="hero"]');
+  await presses(page, FIRST[actionId]);
+  const then = THEN[actionId];
+  if (then) await presses(page, then(await waitForReaction(page)));
+}
+
+async function current(page) {
+  const el = page.locator('main.session');
+  await page.waitForSelector('main.session[data-phase="hero"]');
+  return { rangeId: await el.getAttribute('data-range'), hand: await el.getAttribute('data-hand') };
+}
+
+async function answerCorrectly(page) {
+  const { rangeId, hand } = await current(page);
+  await playAction(page, truthAction(rangeId, hand).id);
 }
 
 let server;
@@ -44,22 +133,8 @@ async function newPage(viewport = { width: 390, height: 844 }) {
   return page;
 }
 
-async function current(page) {
-  const el = page.locator('main.session');
-  return { rangeId: await el.getAttribute('data-range'), hand: await el.getAttribute('data-hand') };
-}
-
 function escape(s) {
   return s.replace(/[.*+?^${}()|[\]\\/]/g, '\\$&');
-}
-
-async function clickAnswer(page, label) {
-  await page.locator('.answer', { hasText: new RegExp(`^${escape(label)}`) }).first().click();
-}
-
-async function answerCorrectly(page) {
-  const { rangeId, hand } = await current(page);
-  await clickAnswer(page, truth(rangeId, hand));
 }
 
 /** Sets the default question count from the home screen. */
@@ -73,6 +148,15 @@ async function trainOn(page, spotTitle, stack) {
   await page.goto(`${BASE}#/train`);
   const row = page.locator('.by-range', { has: page.locator('.row-title', { hasText: new RegExp(`^${escape(spotTitle)}$`) }) });
   await row.locator('.stack-btn', { hasText: new RegExp(`^${stack}$`) }).click();
+  await page.waitForSelector('main.session');
+}
+
+/** Starts a custom session on one range, restricted to some expected actions. */
+async function trainCustom(page, rangeChip, actionLabels) {
+  await page.goto(`${BASE}#/custom`);
+  await page.locator('.chip', { hasText: new RegExp(`^${escape(rangeChip)}$`) }).click();
+  for (const label of actionLabels) await page.locator('.chip-action', { hasText: new RegExp(`^${escape(label)}$`) }).click();
+  await page.locator('.launch-bar .btn-primary').click();
   await page.waitForSelector('main.session');
 }
 
@@ -125,10 +209,12 @@ describe('Expresso Ranges', () => {
 
     const { rangeId, hand } = await current(page);
     assert.equal(rangeId, '3max-btn-open-25');
-    const right = truth(rangeId, hand);
-    await page.locator('.answer').filter({ hasNotText: new RegExp(`^${escape(right)}`) }).first().click();
+    const right = truthAction(rangeId, hand);
+    // A wrong line: fold a playable hand, or shove a folding hand.
+    await playAction(page, right.id === 'fold' ? 'shove' : 'fold');
     await page.waitForSelector('.feedback.ko');
-    assert.match(await page.textContent('.fb-ref'), new RegExp(escape(right)));
+    assert.match(await page.textContent('.fb-ref'), new RegExp(escape(right.label)));
+    assert.match(await page.textContent('.fb-line'), right.id === 'fold' ? /Ta ligne : Tapis \(25 BB\)/ : /Ta ligne : Passer/);
     await page.click('.fb-next');
 
     let answered = 2;
@@ -260,7 +346,7 @@ describe('Expresso Ranges', () => {
     const shove = new Set(['AA', 'KK', 'QQ', 'JJ', 'TT', '99', '88', '77', '66', '55', '44', '33', '22', 'AKs', 'AQs', 'AJs', 'ATs', 'A9s', 'A8s', 'A7s', 'A6s', 'A5s', 'A4s', 'A3s', 'A2s']);
     const { rangeId, hand } = await current(page);
     assert.match(rangeId, /^custom-/);
-    await clickAnswer(page, shove.has(hand) ? 'Open shove' : 'Fold');
+    await playAction(page, shove.has(hand) ? 'shove' : 'fold');
     await page.waitForSelector('.feedback.ok');
 
     await page.goto(`${BASE}#/ranges/${rangeId}`);
@@ -290,14 +376,72 @@ describe('Expresso Ranges', () => {
     await page.waitForSelector('.home');
   });
 
-  test('small phone (320×568): no horizontal scroll, every answer reachable', async () => {
+  test('small phone (320×568): no horizontal scroll, the table controls are reachable', async () => {
     const page = await newPage({ width: 320, height: 568 });
     await trainOn(page, 'HU SB', 15);
+    await page.waitForSelector('main.session[data-phase="hero"]');
     const width = await page.evaluate(() => document.documentElement.scrollWidth);
     assert.ok(width <= 320, `page is ${width}px wide`);
-    const answers = page.locator('.answer');
-    assert.equal(await answers.count(), byId.get('hu-sb-15').actions.length);
-    await answers.last().scrollIntoViewIfNeeded();
-    assert.ok(await answers.last().isVisible());
+    for (const sel of ['.ab-fold', '.ab-call', '.ab-raise', '.ab-presets button >> nth=3']) {
+      const box = await page.locator(sel).boundingBox();
+      assert.ok(box && box.x >= 0 && box.x + box.width <= 320 && box.y + box.height <= 568, `${sel} visible`);
+    }
+    await answerCorrectly(page);
+    await page.waitForSelector('.feedback.ok');
+    await page.click('.fb-next');
+    // A double tap on a button plays (and records) the hand once.
+    await page.waitForSelector('main.session[data-phase="hero"]');
+    await page.locator('.ab-fold').evaluate((b) => {
+      b.click();
+      b.click();
+    });
+    await page.waitForSelector('.feedback');
+    await page.click('.fb-next');
+    await page.waitForSelector('main.session[data-phase="hero"]');
+    assert.match(await page.textContent('.session-count'), /^3 \//);
+  });
+
+  test('landscape phone: the opponent goes to the end of the action (BTN 25: minraise, then 6 BB raise)', async () => {
+    const page = await newPage({ width: 844, height: 390 });
+    await trainCustom(page, 'BTN 25', ['Minraise / Call', 'Minraise / Fold']);
+    // Table layout: the controls stay on screen.
+    const bar = await page.locator('.actionbar').boundingBox();
+    assert.ok(bar && bar.y + bar.height <= 390 && bar.x + bar.width <= 844);
+    for (let i = 0; i < 3; i++) {
+      // Blinds are posted, the hero opens from the button.
+      const { rangeId, hand } = await current(page);
+      assert.match(await page.textContent('.pot'), /Pot : 1,5 BB/);
+      const right = truthAction(rangeId, hand);
+      await presses(page, ['min', 'raise']);
+      assert.equal(await waitForReaction(page), 'raise');
+      // The re-raise is three times the minraise; the third player folds.
+      assert.match(await page.textContent('.opp:not(:has(.folded)) .action-bubble'), /Relance à 6 BB/);
+      // 2 + 6 BB, plus the dead blind of the player who folds (1 BB or 0,5 BB).
+      assert.match(await page.textContent('.pot'), /Pot : (9|8,5) BB/);
+      assert.match(await page.textContent('.ab-call'), /Suivre\s*4 BB/);
+      await presses(page, right.id === 'minraise-call' ? ['call'] : ['fold']);
+      await page.waitForSelector('.feedback.ok');
+      assert.match(await page.textContent('.fb-line'), /Relance à 2 BB → (SB|BB) relance à 6 BB → (Suivre|Passer)/);
+      await page.click('.fb-next');
+    }
+    assert.deepEqual(page.errors, []);
+  });
+
+  test('SB vs BTN: the button minraises, a non all-in 3bet meets a shove', async () => {
+    const page = await newPage({ width: 844, height: 390 });
+    await trainCustom(page, 'SB vs BTN 25', ['3bet non all-in / Call', '3bet non all-in / Fold']);
+    for (let i = 0; i < 3; i++) {
+      const { rangeId, hand } = await current(page);
+      assert.match(await page.textContent('.opp[data-position="BTN"] .action-bubble'), /Relance à 2 BB/);
+      const right = truthAction(rangeId, hand);
+      await presses(page, ['min', 'raise']);
+      assert.equal(await waitForReaction(page), 'allin');
+      assert.match(await page.textContent('.opp[data-position="BTN"] .action-bubble'), /Tapis/);
+      assert.match(await page.textContent('.ab-call'), /Suivre tapis/);
+      await presses(page, right.id === '3bet-nai-call' ? ['call'] : ['fold']);
+      await page.waitForSelector('.feedback.ok');
+      await page.click('.fb-next');
+    }
+    assert.deepEqual(page.errors, []);
   });
 });
