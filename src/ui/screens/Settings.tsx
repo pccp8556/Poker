@@ -31,7 +31,7 @@ function StackedRow({ title, sub, children }: { title: string; sub?: ReactNode; 
   );
 }
 
-export const APP_VERSION = '1.2.0';
+export const APP_VERSION = '1.3.0';
 
 export function SettingsScreen() {
   const library = useLibrary();
@@ -347,7 +347,7 @@ export function SettingsScreen() {
       <Sheet open={resetOpen} onClose={() => setResetOpen(false)} label="Réinitialiser la progression">
         <h2 className="title-sm">Effacer toute la progression ?</h2>
         <p className="muted" style={{ marginTop: 6 }}>
-          Statistiques, historique et révisions seront supprimés de cet appareil ({answered} réponses). Les ranges, réglages et favoris sont conservés. Pense à exporter une
+          Statistiques, historique, révisions et résultats de « Dessine ta range » seront supprimés de cet appareil ({answered} réponses). Les ranges, réglages et favoris sont conservés. Pense à exporter une
           sauvegarde avant.
         </p>
         <div className="sheet-actions">

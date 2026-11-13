@@ -1,3 +1,4 @@
+import { emptyDrawings, parseDrawings, type DrawingsState } from '../domain/drawing';
 import { emptyProgress, type ProgressState, type SessionMode } from '../domain/progress';
 import type { SessionState } from '../domain/quiz';
 import { emptyUserRanges, type UserRanges } from '../domain/userRanges';
@@ -59,6 +60,8 @@ export interface AppData {
   recents: Recent[];
   session: SessionState | null;
   ranges: UserRanges;
+  /** "Draw the range" exercise: results and unfinished drawings. */
+  drawings: DrawingsState;
 }
 
 export const KEYS = {
@@ -68,6 +71,7 @@ export const KEYS = {
   recents: 'rl.recents.v1',
   session: 'rl.session.v1',
   ranges: 'rl.ranges.v1',
+  drawings: 'rl.drawings.v1',
 } as const;
 
 export type DataKey = keyof typeof KEYS;
@@ -144,6 +148,7 @@ const PARSERS: { [K in DataKey]: (v: unknown) => AppData[K] | null } = {
   recents: parseRecents,
   session: parseSession,
   ranges: parseUserRanges,
+  drawings: parseDrawings,
 };
 
 export const DEFAULTS: () => AppData = () => ({
@@ -153,6 +158,7 @@ export const DEFAULTS: () => AppData = () => ({
   recents: [],
   session: null,
   ranges: emptyUserRanges(),
+  drawings: emptyDrawings(),
 });
 
 export interface LoadResult {
@@ -201,6 +207,7 @@ export interface BackupFile {
   favorites: Favorite[];
   recents: Recent[];
   ranges?: UserRanges;
+  drawings?: DrawingsState;
 }
 
 export function makeBackup(data: AppData, now = Date.now()): BackupFile {
@@ -213,10 +220,11 @@ export function makeBackup(data: AppData, now = Date.now()): BackupFile {
     favorites: data.favorites,
     recents: data.recents,
     ranges: data.ranges,
+    drawings: data.drawings,
   };
 }
 
-export function parseBackup(text: string): Omit<BackupFile, 'app' | 'format' | 'exportedAt' | 'ranges'> & { ranges: UserRanges } {
+export function parseBackup(text: string): Omit<BackupFile, 'app' | 'format' | 'exportedAt' | 'ranges' | 'drawings'> & { ranges: UserRanges; drawings: DrawingsState } {
   let v: unknown;
   try {
     v = JSON.parse(text);
@@ -232,5 +240,6 @@ export function parseBackup(text: string): Omit<BackupFile, 'app' | 'format' | '
     favorites: parseFavorites(v.favorites) ?? [],
     recents: parseRecents(v.recents) ?? [],
     ranges: (v.ranges === undefined ? null : parseUserRanges(v.ranges)) ?? emptyUserRanges(),
+    drawings: (v.drawings === undefined ? null : parseDrawings(v.drawings)) ?? emptyDrawings(),
   };
 }

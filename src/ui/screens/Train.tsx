@@ -4,7 +4,7 @@ import { useLibrary, useStore } from '../../app/store';
 import { spotSubtitle } from '../../domain/situation';
 import { reviewQueue } from '../../domain/stats';
 import { plural } from '../format';
-import { IconCalendar, IconChevron, IconCrosshair, IconExam, IconPencil, IconPlay, IconRefresh, IconShuffle, IconSliders, IconTarget } from '../icons';
+import { IconCalendar, IconChevron, IconCrosshair, IconExam, IconPalette, IconPencil, IconPlay, IconRefresh, IconShuffle, IconSliders, IconTarget } from '../icons';
 import { spotGroups } from '../selection';
 import { launch } from './Home';
 
@@ -25,6 +25,7 @@ export function TrainScreen() {
       run: () => launch(allIds, 'random', settings.defaultCount, { label: 'Entraînement rapide' }),
     },
     { icon: IconSliders, tone: 't-green', title: 'Personnalisé', sub: 'Format, situation, profondeur, type d’action', run: () => navigate('/custom') },
+    { icon: IconPalette, tone: 't-gold', title: 'Dessine ta range', sub: 'Peins les 169 mains de mémoire, correction case par case', run: () => navigate('/draw') },
     {
       icon: IconRefresh,
       tone: 't-red',

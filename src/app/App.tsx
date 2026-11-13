@@ -1,5 +1,6 @@
 import { Component, useEffect, type ReactNode } from 'react';
 import { CustomScreen } from '../ui/screens/Custom';
+import { DrawPickerScreen, DrawScreen } from '../ui/screens/Draw';
 import { EditorScreen } from '../ui/screens/Editor';
 import { ExplorerScreen } from '../ui/screens/Explorer';
 import { HistoryScreen } from '../ui/screens/History';
@@ -67,6 +68,8 @@ function Screen({ parts }: { parts: string[] }) {
       return <NewRangeScreen copyOf={arg} />;
     case 'marginal':
       return <MarginalScreen id={arg} />;
+    case 'draw':
+      return arg ? <DrawScreen id={arg} /> : <DrawPickerScreen />;
     case 'session':
       return <SessionScreen />;
     case 'results':

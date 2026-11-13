@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import raw from '../data/ranges.json';
 import type { Grade } from '../domain/grading';
+import { addAttempt, drawingStats, emptyDrawings, setDraft, type Drawing, type DrawingAttempt } from '../domain/drawing';
 import { Library, validateLibrary } from '../domain/library';
 import { addSession, emptyProgress, recordAnswer, type SessionMode } from '../domain/progress';
 import { answerCurrent, createSession, finishSession, isFinished, summarize, type SessionConfig } from '../domain/quiz';
@@ -299,7 +300,7 @@ export class AppStore {
 
   importBackup(text: string) {
     const b = parseBackup(text);
-    this.setData({ ...b, session: null }, ['settings', 'progress', 'favorites', 'recents', 'session', 'ranges']);
+    this.setData({ ...b, session: null }, ['settings', 'progress', 'favorites', 'recents', 'session', 'ranges', 'drawings']);
     this.rebuild(b.ranges);
   }
 
@@ -359,7 +360,21 @@ export class AppStore {
   }
 
   resetProgress() {
-    this.setData({ progress: emptyProgress(), session: null }, ['progress', 'session']);
+    this.setData({ progress: emptyProgress(), session: null, drawings: emptyDrawings() }, ['progress', 'session', 'drawings']);
+  }
+
+  // --- "draw the range" exercise ----------------------------------------------
+
+  /** Keeps an unfinished drawing (null clears it). */
+  saveDrawingDraft(rangeId: string, drawing: Drawing | null) {
+    this.setData({ drawings: setDraft(this.data.drawings, rangeId, drawing, Date.now()) }, ['drawings']);
+  }
+
+  /** Records a validated drawing; returns true when it beats the previous best of this range. */
+  recordDrawing(attempt: DrawingAttempt): boolean {
+    const previous = drawingStats(this.data.drawings).get(attempt.r);
+    this.setData({ drawings: addAttempt(this.data.drawings, attempt) }, ['drawings']);
+    return !!previous && attempt.ok > previous.best.ok;
   }
 }
 

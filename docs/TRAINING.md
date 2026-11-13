@@ -85,6 +85,29 @@ plusieurs réactions adverses et vérifie qu’elle est notée juste, et qu’un
 | Révision | Uniquement les mains ratées dont la révision est due |
 | Examen | Pas de correction avant la fin ; option de temps par décision (8 / 15 / 30 s) |
 
+## Dessine ta range (`drawing.ts`)
+
+Exercice de mémoire (onglet Entraîner → « Dessine ta range », ou « Dessiner de mémoire » sur une range) :
+la grille de 169 mains est vide, on la peint avec les actions de la légende (toucher ou glisser, gomme,
+annuler, tout effacer).
+
+- Les mains non peintes comptent comme **Fold** quand la range a une action Fold ; sinon (HU BB contre
+  un limp) elles sont comptées fausses. Les cases vides restent visibles (contour), distinctes d’un Fold peint.
+- Correction case par case contre la version enregistrée de la range (PDF, modifiée ou personnalisée).
+  Une main mixte accepte toute action qu’elle joue. Le dessin doit reprendre l’action exacte de la
+  légende : « Profil dépendant » n’est juste que peint en « Profil dépendant ».
+- Résultat : mains justes sur 169, part des combos justes (paires 6, suited 4, offsuit 12), temps,
+  record ; grilles « Correction » (bonne action, contour rouge et point de la couleur peinte sur les
+  erreurs), « Mon dessin », « Référence » ; tableau par action (attendues, justes, oubliées, en trop) ;
+  erreurs regroupées (« Fold au lieu de Minraise / Fold : A5o, A4o »).
+- « Jouer ces mains à la table » lance une session limitée aux mains fausses, jouées à la table.
+- Aide optionnelle : nombre de mains attendu par action (« peintes / attendues ») ; l’essai est alors
+  marqué « avec aide ».
+- Le dessin en cours est enregistré au fil de l’eau (il est repris si l’on quitte ou ferme l’application).
+  Les essais validés (500 derniers) donnent le meilleur score de chaque range, affiché dans la liste.
+  Ils font partie de la sauvegarde exportée et sont effacés par « Réinitialiser la progression ».
+  Ils ne comptent pas dans les statistiques de réponses (« Progrès »).
+
 ## Règles de correction (`grading.ts`)
 
 - **Tolérante** : toute action jouée par la range (fréquence > 0) est correcte.

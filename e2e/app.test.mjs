@@ -444,4 +444,55 @@ describe('Expresso Ranges', () => {
     }
     assert.deepEqual(page.errors, []);
   });
+
+  test('drawing a range from memory: kept as a draft, graded hand by hand, mistakes replayed at the table', async () => {
+    const page = await newPage();
+    await page.goto(`${BASE}#/train`);
+    await page.locator('.mode-row', { hasText: 'Dessine ta range' }).click();
+    await page.waitForSelector('.draw-picker');
+    const btn25 = page.locator('.draw-row', { has: page.locator('.row-title', { hasText: /^BTN$/ }) }).locator('.draw-stack').first();
+    await btn25.click();
+    await page.waitForSelector('.screen.draw .rgrid');
+
+    // Drag painting along the first row: AA → A9s (all Minraise / Call in the PDF).
+    await page.locator('.brush', { hasText: 'Minraise / Call' }).click();
+    const from = await page.locator('.rcell[data-hand="AA"]').boundingBox();
+    const to = await page.locator('.rcell[data-hand="A9s"]').boundingBox();
+    await page.mouse.move(from.x + from.width / 2, from.y + from.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(to.x + to.width / 2, to.y + to.height / 2, { steps: 12 });
+    await page.mouse.up();
+    assert.match(await page.textContent('.brush[aria-checked="true"]'), /Minraise \/ Call\s*6/);
+
+    // The drawing in progress survives closing the app.
+    await page.waitForTimeout(700);
+    await page.reload();
+    await page.waitForSelector('.screen.draw .rgrid');
+    assert.match(await page.textContent('.brushes'), /Minraise \/ Call\s*6/);
+
+    // Paint the rest of the reference grid, leaving A5o (Minraise / Fold) empty, i.e. Fold.
+    const r = byId.get('3max-btn-open-25');
+    for (const a of r.actions.filter((x) => x.id !== 'fold')) {
+      await page.locator('.brush', { hasText: new RegExp(`^${escape(a.label)}`) }).click();
+      for (const [hand, strategy] of Object.entries(r.hands)) {
+        if (Object.keys(strategy)[0] === a.id && hand !== 'A5o') await page.locator(`.rcell[data-hand="${hand}"]`).click();
+      }
+    }
+    await page.locator('.draw-bar .btn-primary').click();
+    await page.waitForSelector('.draw.done');
+    assert.match(await page.textContent('.draw-facts'), /168 \/ 169/);
+    assert.equal(await page.locator('.rcell.wrong').count(), 1);
+    assert.equal(await page.locator('.rcell.wrong').getAttribute('data-hand'), 'A5o');
+    assert.match(await page.textContent('.mistake-group'), /Fold\s*au lieu de\s*Minraise \/ Fold.*A5o/s);
+
+    // The mistakes are replayed at the table.
+    await page.locator('.draw-bar .btn-primary', { hasText: 'Rejouer mes erreurs à la table (1)' }).click();
+    await page.waitForSelector('main.session[data-phase="hero"]');
+    assert.equal(await page.locator('main.session').getAttribute('data-hand'), 'A5o');
+
+    // Best score shown in the picker; the draft is gone.
+    await page.goto(`${BASE}#/draw`);
+    assert.match(await btn25.textContent(), /25\s*99 %/);
+    assert.deepEqual(page.errors, []);
+  });
 });

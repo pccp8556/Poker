@@ -50,13 +50,15 @@ interface GridProps {
   marks?: Set<string> | null;
   /** Dims every hand outside this set (marginal-hands editor). */
   only?: Set<string> | null;
+  /** Hands drawn wrong ("draw the range" correction): red outline, plus a dot of the painted colour. */
+  wrong?: Map<string, string | null> | null;
   onSelect?: (hand: string) => void;
   /** Drag painting: called for every cell the finger or mouse passes over. */
   onPaint?: (hand: string, first: boolean) => void;
   size?: 'normal' | 'compact' | 'large';
 }
 
-export function RangeGrid({ range, hands, highlight, selected, focusAction, marks, only, onSelect, onPaint, size = 'normal' }: GridProps) {
+export function RangeGrid({ range, hands, highlight, selected, focusAction, marks, only, wrong, onSelect, onPaint, size = 'normal' }: GridProps) {
   const mode = useColorMode();
   const data = hands ?? range.hands;
   const painting = useRef(false);
@@ -103,9 +105,16 @@ export function RangeGrid({ range, hands, highlight, selected, focusAction, mark
         const main = mainAction(strategy);
         const color = main ? colorOf(range, main, mode) : '#333';
         const dim = (focusAction ? !(strategy && (strategy[focusAction] ?? 0) > 0) : false) || (only ? !only.has(h) : false);
-        const cls = `rcell${dim ? ' dim' : ''}${highlight === h ? ' hl' : ''}${selected === h ? ' sel' : ''}${marks?.has(h) ? ' mark' : ''}`;
-        const label = `${h} : ${range.actions.find((a) => a.id === main)?.label ?? ''}`;
-        const style = { background: strategyFill(range, strategy, mode), color: inkFor(color) };
+        const isWrong = wrong?.has(h) ?? false;
+        const drawn = isWrong ? wrong?.get(h) : null;
+        const cls = `rcell${main ? '' : ' blank'}${dim ? ' dim' : ''}${highlight === h ? ' hl' : ''}${selected === h ? ' sel' : ''}${marks?.has(h) ? ' mark' : ''}${isWrong ? ' wrong' : ''}`;
+        const label = `${h} : ${range.actions.find((a) => a.id === main)?.label ?? 'non peinte'}${isWrong ? ` (erreur : ${range.actions.find((a) => a.id === drawn)?.label ?? 'non peinte'})` : ''}`;
+        const style = {
+          // Unpainted hand (drawing exercise): an empty outlined cell, distinct from a dark "Fold".
+          background: main ? strategyFill(range, strategy, mode) : 'transparent',
+          color: main ? inkFor(color) : 'var(--text-3)',
+          ...(isWrong ? { '--drawn': drawn ? colorOf(range, drawn, mode) : 'transparent' } : {}),
+        } as React.CSSProperties;
         return onSelect && !onPaint ? (
           <button key={h} type="button" className={cls} style={style} aria-label={label} data-hand={h} onClick={() => onSelect(h)}>
             {h}

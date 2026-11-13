@@ -8,7 +8,7 @@ L’application Android embarque exactement le build web (`dist/`) dans un WebVi
 | Identifiant | `fr.rangelab.app` (débogage : `fr.rangelab.app.debug`, installable à côté) |
 | Nom | Expresso Ranges |
 | SDK | min 24 (Android 7), cible / compilation 36 |
-| Version | `versionName 1.2.0`, `versionCode 3` (dans `android/app/build.gradle`) |
+| Version | `versionName 1.3.0`, `versionCode 4` (dans `android/app/build.gradle`) |
 | Stockage | Capacitor Preferences (SharedPreferences) |
 | Orientation | portrait ; l’écran d’entraînement passe en paysage plein écran (`@capacitor/screen-orientation`) |
 | Bouton retour | ferme une feuille ouverte, sinon page précédente, quitte depuis l’accueil |

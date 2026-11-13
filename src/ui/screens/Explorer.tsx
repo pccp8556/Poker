@@ -171,6 +171,9 @@ export function ExplorerScreen({ id, hand }: { id?: string; hand?: string }) {
         <button type="button" className="btn btn-primary btn-lg" onClick={() => launch([range.id], 'random', settings.defaultCount, { label: `${range.title} · ${range.stackBb} BB` })}>
           <IconPlay /> S’entraîner
         </button>
+        <button type="button" className="btn btn-ghost wide" onClick={() => navigate(`/draw/${range.id}`)}>
+          <IconPalette /> Dessiner de mémoire
+        </button>
         <button type="button" className="btn btn-lg" onClick={() => navigate(`/edit/${range.id}`)}>
           <IconPencil /> Modifier
         </button>
